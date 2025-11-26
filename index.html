@@ -45,6 +45,16 @@
                 <input class="shadow appearance-none border rounded w-full py-3 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" id="username-input" type="text" placeholder="Bijv. LeibStrijder" maxlength="12">
             </div>
 
+            <!-- Character Selection -->
+            <div id="character-selection" class="mb-6">
+                <label class="block text-left text-gray-700 text-sm font-bold mb-2">Kies je karakter:</label>
+                <div class="flex gap-4">
+                    <!-- Mini 3D previews -->
+                    <div class="char-preview border p-2 rounded-md hover:border-indigo-600 transition cursor-pointer" data-model="fantasy_villager_1.0.glb" style="width:120px; height:150px;"></div>
+                    <div class="char-preview border p-2 rounded-md hover:border-indigo-600 transition cursor-pointer" data-model="option2.glb" style="width:120px; height:150px;"></div>
+                </div>
+            </div>
+
             <div class="text-left text-sm p-4 bg-gray-100 rounded-lg mb-6">
                 <p><strong>Controls:</strong> WASD (Loop) | Spatie (Spring) | Muis (Kijk) | Klik (Spuug)</p>
             </div>
@@ -55,10 +65,30 @@
         </div>
     </div>
 
-    <div id="pause-screen" class="overlay"><div class="game-card"><h1>PAUZE</h1><button id="resume-btn" class="bg-green-600 text-white px-6 py-3 rounded-full mt-4">Verder</button></div></div>
-    <div id="game-over-screen" class="overlay"><div class="game-card"><h1>GAME OVER</h1><p id="go-reason" class="text-red-600 mb-4"></p><button onclick="window.location.reload();" class="bg-red-600 text-white px-6 py-3 rounded-full">Opnieuw</button></div></div>
+    <div id="pause-screen" class="overlay">
+        <div class="game-card">
+            <h1>PAUZE</h1>
+            <button id="resume-btn" class="bg-green-600 text-white px-6 py-3 rounded-full mt-4">Verder</button>
+        </div>
+    </div>
+
+    <div id="game-over-screen" class="overlay">
+        <div class="game-card">
+            <h1>GAME OVER</h1>
+            <p id="go-reason" class="text-red-600 mb-4"></p>
+            <button onclick="window.location.reload();" class="bg-red-600 text-white px-6 py-3 rounded-full">Opnieuw</button>
+        </div>
+    </div>
     
     <script src="config.js"></script>
     <script type="module" src="main.js"></script>
+
+    <style>
+        /* Highlight selected character */
+        .char-preview.selected {
+            border-color: #00ff00;
+            background-color: #222;
+        }
+    </style>
 </body>
 </html>

@@ -4,6 +4,8 @@ import { initFirebase, db, auth } from './firebase.js';
 import { listenToPlayers, startBroadcasting } from './multiplayer.js';
 import { getDoc, setDoc, doc } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 import { syncAndBuildWorld } from './world.js';
+let selectedModelFile = 'fantasy_villager_1.0.glb'; // default
+
 
 
 // Instellingen
@@ -25,7 +27,6 @@ let textureLoader;
 let currentAction = null;
 let modelLoaded = false;
 let platformTexture = null;
-
 
 // Trip Mode Variabelen
 let isTripping = false;
@@ -87,6 +88,7 @@ function enableStart() {
     ui.btn.disabled = false;
     ui.btn.classList.remove('opacity-50', 'cursor-not-allowed');
 }
+
 
 function initThreeJS() {
     scene = new THREE.Scene();
@@ -165,7 +167,7 @@ function initThreeJS() {
     scene.add(player);
 
     // Laad het GLB model
-    loadPlayerModel();
+    loadPlayerModel(selectedModelFile);
 
     setupInputs();
 
@@ -207,13 +209,24 @@ function addPlayerLights() {
     player.add(pointLight);
 }
 
-function loadPlayerModel() {
+function logChildren(obj, depth = 0) {
+    console.log(
+        " ".repeat(depth * 2),
+        obj.name || "[no name]",
+        obj.type,
+        "isMesh:", obj.isMesh
+    );
+    obj.children.forEach(child => logChildren(child, depth + 1));
+}
+
+
+function loadPlayerModel(model) {
     const loader = new GLTFLoader();
 
     console.log("Starting to load model...");
     updateStatus("model", "🎮 Model laden... 0%", "purple");
 
-    loader.load('fantasy_villager_1.0.glb',
+    loader.load(model,
         (gltf) => {
             console.log("Model loaded successfully!", gltf);
             playerModel = gltf.scene;
@@ -228,48 +241,10 @@ function loadPlayerModel() {
 
             // Voeg het model toe aan de player container
             player.add(playerModel);
+            logChildren(playerModel);
 
             // Setup animations
-            if (gltf.animations && gltf.animations.length > 0) {
-                mixer = new THREE.AnimationMixer(playerModel);
-
-                console.log("Found animations:", gltf.animations.map(a => a.name));
-
-                gltf.animations.forEach((clip) => {
-                    const action = mixer.clipAction(clip);
-                    const name = clip.name.toLowerCase();
-
-                    // Probeer standaard animatie namen te detecteren
-                    if (name.includes('idle') || name.includes('stand')) {
-                        animations.idle = action;
-                    } else if (name.includes('walk') || name.includes('run')) {
-                        animations.run = action;
-                    } else if (name.includes('jump')) {
-                        animations.jump = action;
-                    }
-                });
-
-                // Als de namen anders zijn, gebruik de eerste 3 clips als fallback
-                if (!animations.idle && gltf.animations[0]) {
-                    animations.idle = mixer.clipAction(gltf.animations[0]);
-                }
-                if (!animations.run && gltf.animations[1]) {
-                    animations.run = mixer.clipAction(gltf.animations[1]);
-                }
-                if (!animations.jump && gltf.animations[2]) {
-                    animations.jump = mixer.clipAction(gltf.animations[2]);
-                }
-
-                // Start met idle animatie
-                if (animations.idle) {
-                    currentAction = animations.idle;
-                    currentAction.play();
-                }
-
-                console.log('Animations loaded:', Object.keys(animations));
-            } else {
-                console.warn('No animations found in GLB file');
-            }
+            console.log("GLTF raw data:", gltf);
 
             modelLoaded = true;
             updateStatus("model", "✅ Model geladen!", "green");
@@ -513,6 +488,30 @@ function animate() {
 }
 
 function setupInputs() {
+    // Character selection buttons
+    const charButtons = document.querySelectorAll('.char-btn');
+    charButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            // Update selected model
+            selectedModelFile = btn.dataset.model;
+
+            // Remove previous model
+            if (playerModel) {
+                player.remove(playerModel);
+                playerModel.traverse(child => {
+                    if (child.isMesh) child.geometry.dispose();
+                    if (child.material) child.material.dispose();
+                });
+            }
+
+            // Load the new model
+            loadPlayerModel(selectedModelFile);
+
+            // Highlight selected button
+            charButtons.forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+        });
+    });
     ui.btn.addEventListener('click', async () => {
         const inputName = ui.nameInput.value.trim();
         if (inputName) myName = inputName;
@@ -585,4 +584,74 @@ function setupInputs() {
             projectiles.push({ mesh: ball, velocity: dir.multiplyScalar(30), life: 2.0 });
         }
     });
+    document.querySelectorAll('.char-preview').forEach((el, i) => {
+        el.addEventListener('click', () => {
+            selectedModelFile = el.dataset.model;
+
+            // Remove old player model
+            if (playerModel) {
+                player.remove(playerModel);
+                playerModel.traverse(child => {
+                    if (child.isMesh) child.geometry.dispose();
+                    if (child.material) child.material.dispose();
+                });
+            }
+
+            loadPlayerModel(selectedModelFile);
+
+            // Highlight selected preview
+            document.querySelectorAll('.char-preview').forEach(e => e.classList.remove('selected'));
+            el.classList.add('selected');
+        });
+    });
+    document.querySelectorAll('.char-preview').forEach(el => {
+        loadPreviewModel(el, el.dataset.model);
+    });
+}
+function loadPreviewModel(el, modelFile) {
+    // Clean old
+    if (el.previewRenderer) el.removeChild(el.previewRenderer.domElement);
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(50, el.clientWidth / el.clientHeight, 0.1, 100);
+    camera.position.set(0, 1.5, 3);
+    camera.lookAt(0, 1, 0);
+
+    const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+    renderer.setSize(el.clientWidth, el.clientHeight);
+    el.appendChild(renderer.domElement);
+
+    const light = new THREE.DirectionalLight(0xffffff, 1);
+    light.position.set(5, 10, 5);
+    scene.add(light);
+
+    const loader = new GLTFLoader();
+    loader.load(modelFile, (gltf) => {
+        const container = new THREE.Object3D();
+        container.add(gltf.scene);
+
+        const MODEL_SCALES = {
+            'fantasy_villager_1.0.glb': 1.2,   // increase size
+            'option2.glb': 0.45,               // shrink
+            'default': 1                      // fallback
+        };
+        const scale = MODEL_SCALES[modelFile] || MODEL_SCALES['default'];
+        container.scale.set(scale, scale, scale);
+        container.rotation.y = Math.PI;
+        scene.add(container);
+
+        // store for animation
+        el.previewRenderer = renderer;
+        el.previewModel = container;
+        el.previewScene = scene;
+        el.previewCamera = camera;
+
+        animatePreview(el);
+    });
+}
+function animatePreview(el) {
+    if (!el.previewModel) return;
+    el.previewModel.rotation.y += 0.01;
+    el.previewRenderer.render(el.previewScene, el.previewCamera);
+    requestAnimationFrame(() => animatePreview(el));
 }
