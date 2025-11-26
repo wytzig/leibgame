@@ -11,13 +11,16 @@ import sys
 PORT = 8000
 DIRECTORY = "."
 
+class ReusableTCPServer(socketserver.TCPServer):
+    allow_reuse_address = True
+
 class Handler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=DIRECTORY, **kwargs)
 
 def start_server():
     """Start de HTTP server in een aparte thread."""
-    with socketserver.TCPServer(("", PORT), Handler) as httpd:
+    with ReusableTCPServer(("", PORT), Handler) as httpd:
         print(f"Server gestart op http://localhost:{PORT}")
         print("Druk op Ctrl+C om te stoppen.")
         httpd.serve_forever()
