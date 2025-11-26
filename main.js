@@ -21,7 +21,7 @@ let userId, myName = "Speler", isMultiplayer = false;
 let camera, scene, renderer, player, playerModel, mixer, animations = {};
 let velocity = new THREE.Vector3();
 let platforms = [], coins = [], enemies = [], otherPlayers = {}, projectiles = [];
-let gameState = 'start', canJump = false, coinsCollected = 0;
+let gameState = 'start', canJump = true, coinsCollected = 0;
 let moveF = false, moveB = false, moveL = false, moveR = false;
 let textureLoader;
 let currentAction = null;
@@ -241,21 +241,44 @@ function loadPlayerModel(model) {
             const scale = MODEL_SCALES[model] || MODEL_SCALES['default'];
             playerModel.scale.set(scale, scale, scale);
 
-            // Roteer het model zodat het naar voren kijkt
+            // Rotate the model so it faces forward
             playerModel.rotation.y = Math.PI;
+            playerModel.position.y = -1.1;
 
-            playerModel.position.y = -1.1
-
-            // Voeg het model toe aan de player container
+            // Add model to the player container
             player.add(playerModel);
             logChildren(playerModel);
 
-            // Setup animations
-            console.log("GLTF raw data:", gltf);
+            // --- ANIMATION SETUP START ---
+            if (gltf.animations && gltf.animations.length > 0) {
+                console.log("Animations found in GLB:", gltf.animations.map(a => a.name));
+
+                // Create a mixer for this model
+                mixer = new THREE.AnimationMixer(playerModel);
+
+                // Map key animations globally for option2.glb
+                animations = {
+                    idle: mixer.clipAction(gltf.animations[10]),   // WH_NormalIddle -> choose 14 for normal idle max
+                    run: mixer.clipAction(gltf.animations[0]),     // WH_NormalRun
+                    jump: mixer.clipAction(gltf.animations[9])     // WH_CombatJumpUP
+                };
+                // Set looping for animations
+                for (const action of Object.values(animations)) {
+                    action.setLoop(THREE.LoopRepeat);
+                    action.clampWhenFinished = true;
+                }
+
+                // Play idle by default
+                playAnimation('idle');
+            } else {
+                console.warn("No animations found in this GLB file.");
+            }
+
+            // Add lights to the player model
+            addPlayerLights();
 
             modelLoaded = true;
             updateStatus("model", "✅ Model geladen!", "green");
-
             checkIfReadyToStart();
         },
         (progress) => {
@@ -269,21 +292,12 @@ function loadPlayerModel(model) {
             console.error('Error loading model:', error);
             updateStatus("model", "⚠️ Model laden mislukt (gebruik fallback)", "yellow");
 
-            // Fallback: maak een simpele box als backup
+            // Fallback: simple box model
             const fallbackGeo = new THREE.BoxGeometry(1, 2, 1);
             const fallbackMat = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
             playerModel = new THREE.Mesh(fallbackGeo, fallbackMat);
             player.add(playerModel);
             addPlayerLights();
-
-            // Enable shadows and update materials
-            playerModel.traverse((child) => {
-                if (child.isMesh) {
-                    child.castShadow = true;
-                    child.receiveShadow = true;
-                    if (child.material) child.material.needsUpdate = true;
-                }
-            });
 
             playerModel.traverse((child) => {
                 if (child.isMesh) {
@@ -295,8 +309,10 @@ function loadPlayerModel(model) {
 
             modelLoaded = true;
             checkIfReadyToStart();
-        });
+        }
+    );
 }
+
 
 // Helper functie om status berichten te combineren
 const statusMessages = { model: "", firebase: "" };
@@ -396,6 +412,14 @@ function animate() {
         const right = new THREE.Vector3(1, 0, 0).applyEuler(player.rotation);
 
         const isMoving = moveF || moveB || moveL || moveR;
+
+        if (!canJump && Math.abs(velocity.y) > 1) {
+            playAnimation('jump');
+        } else if (isMoving && canJump) {
+            playAnimation('run');
+        } else if (canJump) {
+            playAnimation('idle');
+        }
 
         if (moveF) velocity.add(fwd.clone().multiplyScalar(MOVE_SPEED * delta * 10));
         if (moveB) velocity.add(fwd.clone().multiplyScalar(-MOVE_SPEED * delta * 10));
