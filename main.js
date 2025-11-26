@@ -73,7 +73,7 @@ window.onload = async () => {
                 ui.btn.disabled = false;
                 ui.btn.classList.remove('opacity-50', 'cursor-not-allowed');
                 
-                // Meteen luisteren (ook in menu)
+                // --- FIX: START DIRECT MET LUISTEREN NA SUCCESVOLLE LOGIN ---
                 listenToPlayers();
             } else {
                 signInAnonymously(auth).catch(console.error);
