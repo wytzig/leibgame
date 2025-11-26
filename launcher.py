@@ -4,6 +4,8 @@ import webbrowser
 import os
 import time
 import threading
+import subprocess
+import sys
 
 # Configuratie
 PORT = 8000
@@ -20,10 +22,27 @@ def start_server():
         print("Druk op Ctrl+C om te stoppen.")
         httpd.serve_forever()
 
+def open_browser(url):
+    """Open browser met fallback opties voor Linux."""
+    try:
+        # Probeer eerst de standaard webbrowser
+        webbrowser.open(url)
+    except Exception as e:
+        print(f"Standaard methode mislukt: {e}")
+        # Fallback voor Linux: probeer direct xdg-open
+        try:
+            subprocess.Popen(['xdg-open', url], 
+                           stdout=subprocess.DEVNULL, 
+                           stderr=subprocess.DEVNULL)
+            print("Browser geopend via xdg-open")
+        except Exception as e2:
+            print(f"xdg-open mislukt: {e2}")
+            print(f"Open handmatig: {url}")
+
 def main():
     print("--- Leib Weissman Game Launcher ---")
     
-    # Navigeer naar de map van het script (BELANGRIJK!)
+    # Navigeer naar de map van het script
     script_dir = os.path.dirname(os.path.abspath(__file__))
     os.chdir(script_dir)
     print(f"Werkmap ingesteld op: {script_dir}")
@@ -44,13 +63,13 @@ def main():
 
     url = f"http://localhost:{PORT}"
     print(f"Browser openen op {url}")
-    webbrowser.open(url)
+    open_browser(url)
 
     try:
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
-        print("\nSpel afgesloten.")
+        print("\n✅ Spel afgesloten.")
 
 if __name__ == "__main__":
     main()

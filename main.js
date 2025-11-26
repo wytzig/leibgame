@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/loaders/GLTFLoader.js';
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
 import { getFirestore, doc, setDoc, getDoc, onSnapshot, collection, deleteDoc } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
@@ -25,12 +26,14 @@ const BUFF_DURATION = 8000;
 
 // Globals
 let app, auth, db, userId, myName = "Speler", isMultiplayer = false;
-let camera, scene, renderer, player;
+let camera, scene, renderer, player, playerModel, mixer, animations = {};
 let velocity = new THREE.Vector3();
 let platforms = [], coins = [], enemies = [], otherPlayers = {}, projectiles = [];
 let gameState = 'start', canJump = false, coinsCollected = 0;
 let moveF = false, moveB = false, moveL = false, moveR = false;
 let textureLoader;
+let currentAction = null;
+let modelLoaded = false;
 
 // Trip Mode Variabelen
 let isTripping = false;
@@ -58,8 +61,13 @@ const ui = {
 };
 
 window.onload = async () => {
-    // Multiplayer Starten
+    // Start Three.js eerst om visuele feedback te geven
+    initThreeJS();
+    
+    // Dan Multiplayer opstarten
     try {
+        updateStatus("firebase", "🔌 Verbinding maken...", "blue");
+        
         app = initializeApp(firebaseConfig);
         auth = getAuth(app);
         db = getFirestore(app);
@@ -68,25 +76,35 @@ window.onload = async () => {
             if (user) {
                 userId = user.uid;
                 isMultiplayer = true;
-                ui.status.innerText = "✅ Verbonden met Multiplayer!";
-                ui.status.className = "bg-green-100 text-green-800 p-3 rounded mb-4 border border-green-400";
-                ui.btn.disabled = false;
-                ui.btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                console.log("Firebase connected! User ID:", userId);
+                updateStatus("firebase", "✅ Multiplayer verbonden!", "green");
+                checkIfReadyToStart();
                 
-                // --- START DIRECT MET LUISTEREN NA SUCCESVOLLE LOGIN ---
                 listenToPlayers();
             } else {
-                signInAnonymously(auth).catch(console.error);
+                console.log("No user yet, signing in anonymously...");
+                updateStatus("firebase", "🔐 Inloggen...", "blue");
+                signInAnonymously(auth).catch((err) => {
+                    console.error("Auth error:", err);
+                    updateStatus("firebase", "❌ Firebase verbinding mislukt", "red");
+                });
             }
         });
     } catch (e) {
-        console.error(e);
-        ui.status.innerText = "Offline Modus (Config Fout)";
+        console.error("Firebase init error:", e);
+        updateStatus("firebase", "⚠️ Offline Modus (Config Fout)", "yellow");
+        // In offline mode, alleen model nodig
+        isMultiplayer = false;
+        checkIfReadyToStart();
+    }
+};
+
+function checkIfReadyToStart() {
+    console.log("Ready check: modelLoaded =", modelLoaded, ", isMultiplayer =", isMultiplayer, ", userId =", userId);
+    if (modelLoaded && (!isMultiplayer || (isMultiplayer && userId))) {
         enableStart();
     }
-
-    initThreeJS();
-};
+}
 
 function enableStart() {
     ui.btn.disabled = false;
@@ -101,6 +119,7 @@ function initThreeJS() {
     camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
     renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
     document.body.appendChild(renderer.domElement);
 
     // Licht
@@ -113,12 +132,13 @@ function initThreeJS() {
 
     textureLoader = new THREE.TextureLoader();
     
-    // Speler
-    const pGeo = new THREE.BoxGeometry(1, 2, 1);
-    const pMat = new THREE.MeshStandardMaterial({ map: textureLoader.load('leib.png') });
-    player = new THREE.Mesh(pGeo, pMat);
+    // Speler Container (voor collisie detectie)
+    player = new THREE.Object3D();
     player.position.set(0, 5, 0);
     scene.add(player);
+
+    // Laad het GLB model
+    loadPlayerModel();
 
     setupInputs();
     
@@ -129,6 +149,143 @@ function initThreeJS() {
     });
 
     animate();
+}
+
+function loadPlayerModel() {
+    const loader = new GLTFLoader();
+    
+    console.log("Starting to load model...");
+    updateStatus("model", "🎮 Model laden... 0%", "purple");
+    
+    loader.load('fantasy_villager_1.0.glb', 
+    (gltf) => {
+        console.log("Model loaded successfully!", gltf);
+        playerModel = gltf.scene;
+        
+        // Schaal het model indien nodig
+        playerModel.scale.set(1, 1, 1);
+        
+        // Roteer het model zodat het naar voren kijkt
+        playerModel.rotation.y = Math.PI;
+        
+        // Voeg het model toe aan de player container
+        player.add(playerModel);
+        
+        // Setup animations
+        if (gltf.animations && gltf.animations.length > 0) {
+            mixer = new THREE.AnimationMixer(playerModel);
+            
+            console.log("Found animations:", gltf.animations.map(a => a.name));
+            
+            gltf.animations.forEach((clip) => {
+                const action = mixer.clipAction(clip);
+                const name = clip.name.toLowerCase();
+                
+                // Probeer standaard animatie namen te detecteren
+                if (name.includes('idle') || name.includes('stand')) {
+                    animations.idle = action;
+                } else if (name.includes('walk') || name.includes('run')) {
+                    animations.run = action;
+                } else if (name.includes('jump')) {
+                    animations.jump = action;
+                }
+            });
+            
+            // Als de namen anders zijn, gebruik de eerste 3 clips als fallback
+            if (!animations.idle && gltf.animations[0]) {
+                animations.idle = mixer.clipAction(gltf.animations[0]);
+            }
+            if (!animations.run && gltf.animations[1]) {
+                animations.run = mixer.clipAction(gltf.animations[1]);
+            }
+            if (!animations.jump && gltf.animations[2]) {
+                animations.jump = mixer.clipAction(gltf.animations[2]);
+            }
+            
+            // Start met idle animatie
+            if (animations.idle) {
+                currentAction = animations.idle;
+                currentAction.play();
+            }
+            
+            console.log('Animations loaded:', Object.keys(animations));
+        } else {
+            console.warn('No animations found in GLB file');
+        }
+        
+        modelLoaded = true;
+        updateStatus("model", "✅ Model geladen!", "green");
+        
+        checkIfReadyToStart();
+    }, 
+    (progress) => {
+        if (progress.total > 0) {
+            const percent = Math.round(progress.loaded / progress.total * 100);
+            updateStatus("model", `🎮 Model laden... ${percent}%`, "purple");
+            console.log('Loading model:', percent + '%');
+        }
+    },
+    (error) => {
+        console.error('Error loading model:', error);
+        updateStatus("model", "⚠️ Model laden mislukt (gebruik fallback)", "yellow");
+        
+        // Fallback: maak een simpele box als backup
+        const fallbackGeo = new THREE.BoxGeometry(1, 2, 1);
+        const fallbackMat = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
+        playerModel = new THREE.Mesh(fallbackGeo, fallbackMat);
+        player.add(playerModel);
+        
+        modelLoaded = true;
+        checkIfReadyToStart();
+    });
+}
+
+// Helper functie om status berichten te combineren
+const statusMessages = { model: "", firebase: "" };
+
+function updateStatus(type, message, color) {
+    statusMessages[type] = { text: message, color: color };
+    
+    // Combineer beide berichten
+    const messages = [];
+    const colors = [];
+    
+    if (statusMessages.model.text) {
+        messages.push(statusMessages.model.text);
+        colors.push(statusMessages.model.color);
+    }
+    if (statusMessages.firebase.text) {
+        messages.push(statusMessages.firebase.text);
+        colors.push(statusMessages.firebase.color);
+    }
+    
+    // Bepaal de meest "belangrijke" kleur (red > yellow > purple > blue > green)
+    const colorPriority = { red: 1, yellow: 2, purple: 3, blue: 4, green: 5 };
+    const finalColor = colors.sort((a, b) => colorPriority[a] - colorPriority[b])[0] || "blue";
+    
+    const colorClasses = {
+        red: "bg-red-100 text-red-800 border-red-400",
+        yellow: "bg-yellow-100 text-yellow-800 border-yellow-400",
+        purple: "bg-purple-100 text-purple-800 border-purple-400",
+        blue: "bg-blue-100 text-blue-800 border-blue-400",
+        green: "bg-green-100 text-green-800 border-green-400"
+    };
+    
+    ui.status.innerHTML = messages.join("<br>");
+    ui.status.className = `text-sm p-3 mb-4 rounded-lg border ${colorClasses[finalColor]}`;
+}
+
+function playAnimation(name) {
+    if (!mixer || !animations[name] || currentAction === animations[name]) return;
+    
+    const nextAction = animations[name];
+    
+    if (currentAction) {
+        currentAction.fadeOut(0.2);
+    }
+    
+    nextAction.reset().fadeIn(0.2).play();
+    currentAction = nextAction;
 }
 
 // --- WERELD SYNC LOGICA ---
@@ -159,16 +316,14 @@ async function syncAndBuildWorld() {
             }
         } catch (e) {
             console.error("Fout bij ophalen wereld (waarschijnlijk rechten):", e);
-            // Laat de gebruiker zien dat er iets mis is!
             ui.status.innerHTML = "⚠️ <strong>Database Fout:</strong> Toegang geweigerd.<br><small>Check je Firestore Rules in de Console.</small>";
             ui.status.className = "bg-red-100 text-red-800 p-3 rounded mb-4 border border-red-400";
-            worldData = generateWorldData(); // Fallback naar offline
+            worldData = generateWorldData();
         }
     } else {
         worldData = generateWorldData();
     }
 
-    // Safety check: als data leeg is, genereer alsnog
     if (!worldData || !worldData.platforms || worldData.platforms.length === 0) {
         console.warn("Ontvangen wereld data was leeg, fallback naar lokaal.");
         worldData = generateWorldData();
@@ -183,7 +338,6 @@ async function syncAndBuildWorld() {
 function generateWorldData() {
     const data = { platforms: [], coins: [], enemies: [] };
 
-    // Start Platform
     data.platforms.push({ x: 0, y: -2, z: 0, w: 10, h: 2, d: 10 });
 
     let z = -10;
@@ -199,7 +353,6 @@ function generateWorldData() {
         if(Math.random() > 0.7) data.enemies.push({ x, y: y+3, z });
         z -= (4 + Math.random() * 4);
     }
-    // Eind platform
     data.platforms.push({ x: 0, y: 0, z: CASTLE_Z, w: 20, h: 2, d: 20 });
     return data;
 }
@@ -245,7 +398,6 @@ function createEnemy(x,y,z) {
 function listenToPlayers() {
     const playersRef = collection(db, "players");
     
-    // Update de teller direct
     ui.peers.innerText = "1";
 
     onSnapshot(playersRef, (snap) => {
@@ -269,16 +421,13 @@ function listenToPlayers() {
             otherPlayers[id].label.position.copy(otherPlayers[id].mesh.position).add(new THREE.Vector3(0, 2.5, 0));
         });
 
-        // Update Peer Count
         ui.peers.innerText = Object.keys(otherPlayers).length + 1;
     }, (error) => {
-        // FOUTAFHANDELING: Dit is de belangrijkste toevoeging!
         console.error("Snapshot error:", error);
         ui.status.innerHTML = "❌ <strong>Database Toegang Geweigerd!</strong><br><small>Je regels staan waarschijnlijk te streng.</small>";
         ui.status.className = "bg-red-600 text-white p-3 rounded mb-4 font-bold border-4 border-red-800";
     });
 
-    // Cleanup loop
     setInterval(() => {
         const now = Date.now();
         for (const [id, player] of Object.entries(otherPlayers)) {
@@ -297,7 +446,6 @@ function startBroadcasting() {
     let lastPos = new THREE.Vector3();
     
     setInterval(() => {
-        // FIX: Gebruik auth.currentUser.uid om te garanderen dat de speler is ingelogd
         if(gameState === 'playing' && auth.currentUser && auth.currentUser.uid) { 
             const now = Date.now();
             const dist = player.position.distanceTo(lastPos);
@@ -362,8 +510,7 @@ function endGame(reason, won = false) {
     document.exitPointerLock();
     ui.goReason.innerText = reason;
     
-    // kleur afhankelijk van winnen/ verliezen
-    ui.goReason.style.color = won ? '#00ff00' : '#ff0000'; // groen of rood
+    ui.goReason.style.color = won ? '#00ff00' : '#ff0000';
 
     ui.gameOver.classList.add('active');
 }
@@ -372,6 +519,9 @@ function endGame(reason, won = false) {
 function animate() {
     requestAnimationFrame(animate);
     const delta = 0.016; 
+
+    // Update animations
+    if (mixer) mixer.update(delta);
 
     if(gameState === 'playing') {
         currentGravity = THREE.MathUtils.lerp(currentGravity, targetGravity, delta * 2);
@@ -385,12 +535,23 @@ function animate() {
         const fwd = new THREE.Vector3(0,0,-1).applyEuler(player.rotation);
         const right = new THREE.Vector3(1,0,0).applyEuler(player.rotation);
 
+        const isMoving = moveF || moveB || moveL || moveR;
+
         if(moveF) velocity.add(fwd.clone().multiplyScalar(MOVE_SPEED * delta * 10));
         if(moveB) velocity.add(fwd.clone().multiplyScalar(-MOVE_SPEED * delta * 10));
         if(moveL) velocity.add(right.clone().multiplyScalar(-MOVE_SPEED * delta * 10));
         if(moveR) velocity.add(right.clone().multiplyScalar(MOVE_SPEED * delta * 10));
 
         player.position.add(velocity.clone().multiplyScalar(delta));
+
+        // Animation state machine
+        if (!canJump && Math.abs(velocity.y) > 1) {
+            playAnimation('jump');
+        } else if (isMoving && canJump) {
+            playAnimation('run');
+        } else if (canJump) {
+            playAnimation('idle');
+        }
 
         // FALL CHECK
         if(player.position.y < -30) {
@@ -410,12 +571,10 @@ function animate() {
             }
         });
 
-        // WIN CHECK: reached the castle end platform / tower
-        // Tune the tolerances (+5, 10, 12) if your end platform has different size/height.
+        // WIN CHECK
         if (player.position.z <= CASTLE_Z + 5 &&
             Math.abs(player.position.x) < 10 &&
             player.position.y <= 12) {
-            // Prevent double-triggering if already ending
             if (gameState !== 'ended') {
                 endGame("Je hebt het kasteel bereikt! Je wint!", true);
             }
@@ -482,7 +641,6 @@ function setupInputs() {
         ui.nameDisplay.innerText = myName;
 
         if (isMultiplayer) {
-            // FIX: Dwingt de initiële schrijfactie af om de 'players' collectie te creëren.
             await setDoc(doc(db, "players", userId), { 
                 name: myName, 
                 x: player.position.x, 
@@ -494,7 +652,7 @@ function setupInputs() {
                 console.error("Fout bij initiële positie zenden:", e);
             });
             
-            startBroadcasting(); // Start de periodieke updates
+            startBroadcasting();
         }
 
         await syncAndBuildWorld();
@@ -504,7 +662,6 @@ function setupInputs() {
         gameState = 'playing';
     });
 
-    // Fix voor pauze scherm
     ui.resumeBtn.addEventListener('click', () => {
         document.body.requestPointerLock();
     });
@@ -512,11 +669,11 @@ function setupInputs() {
     document.addEventListener('pointerlockchange', () => {
         if(document.pointerLockElement === document.body) {
             gameState = 'playing';
-            ui.pauseScreen.classList.remove('active'); // Verberg pauze
+            ui.pauseScreen.classList.remove('active');
         } else {
             if(gameState === 'playing' && gameState !== 'ended') {
                 gameState = 'paused';
-                ui.pauseScreen.classList.add('active'); // Toon pauze
+                ui.pauseScreen.classList.add('active');
             }
         }
     });
@@ -526,9 +683,10 @@ function setupInputs() {
         if(e.code === 'KeyS') moveB = true;
         if(e.code === 'KeyA') moveL = true;
         if(e.code === 'KeyD') moveR = true;
-        if(e.code === 'Space') {
-             velocity.y = JUMP_SPEED;
-         }
+        if(e.code === 'Space' && canJump) {
+            velocity.y = JUMP_SPEED;
+            canJump = false;
+        }
         if(e.code === 'Enter') activateWeed();
     });
     document.addEventListener('keyup', e => {
