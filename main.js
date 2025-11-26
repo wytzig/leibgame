@@ -32,6 +32,7 @@ let platforms = [], coins = [], enemies = [], otherPlayers = {}, projectiles = [
 let gameState = 'start', canJump = false, coinsCollected = 0;
 let moveF = false, moveB = false, moveL = false, moveR = false;
 let textureLoader;
+let platformTexture = null;
 let currentAction = null;
 let modelLoaded = false;
 
@@ -136,6 +137,54 @@ function initThreeJS() {
 
     textureLoader = new THREE.TextureLoader();
 
+    // --- texture setup ---
+    textureLoader = new THREE.TextureLoader();
+
+    // Ensure correct color encoding for accurate look
+    // (important when renderer.outputEncoding isn't the default)
+    renderer.outputEncoding = THREE.sRGBEncoding;
+
+    // Load platform texture and update existing platforms when ready
+    platformTexture = textureLoader.load(
+        "hava.png",
+        // onLoad
+        (tex) => {
+            // correct encoding so colors/light appear right
+            tex.encoding = THREE.sRGBEncoding;
+
+            // make it tileable
+            tex.wrapS = THREE.RepeatWrapping;
+            tex.wrapT = THREE.RepeatWrapping;
+            tex.repeat.set(2, 2);
+
+            // If platforms were already created with fallback materials, replace their maps now
+            platforms.forEach((p) => {
+                if (p && p.material) {
+                    // use a cloned texture so per-platform tiling can be adjusted independently
+                    const cloned = tex.clone();
+                    // default tiling relative to platform size
+                    cloned.repeat.set((p.userData.w || 1) / 2, (p.userData.d || 1) / 2);
+                    cloned.needsUpdate = true;
+
+                    p.material.map = cloned;
+                    // keep white base under transparent PNG
+                    p.material.color = new THREE.Color(0xffffff);
+                    p.material.transparent = true;
+                    p.material.alphaTest = 0.1;
+                    p.material.needsUpdate = true;
+                }
+            });
+
+            console.log("Platform texture loaded and applied to existing platforms.");
+        },
+        // onProgress (optional)
+        undefined,
+        // onError
+        (err) => {
+            console.warn("Failed to load platform texture hava.png", err);
+        }
+    );
+
     // Speler Container (voor collisie detectie)
     player = new THREE.Object3D();
     player.position.set(0, 5, 0);
@@ -202,7 +251,7 @@ function loadPlayerModel() {
             // Roteer het model zodat het naar voren kijkt
             playerModel.rotation.y = Math.PI;
 
-            playerModel.position.y = -1.2
+            playerModel.position.y = -1.1
 
             // Voeg het model toe aan de player container
             player.add(playerModel);
@@ -422,14 +471,43 @@ function buildWorldFromData(data) {
 }
 
 // --- OBJECT CREATORS ---
-
 function createPlat(x, y, z, w, h, d) {
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshLambertMaterial({ color: 0xdddddd }));
+    let mat;
+
+    // If texture is available, use it. If not, use fallback material (white).
+    if (platformTexture) {
+        // clone so we can set repeat per-platform
+        const tex = platformTexture.clone();
+        tex.repeat.set(w / 2, d / 2);
+        tex.needsUpdate = true;
+
+        mat = new THREE.MeshLambertMaterial({
+            color: 0xffffff,   // keep white base under the PNG cutout
+            map: tex,
+            transparent: true, // PNG alpha will work
+            alphaTest: 0.1     // avoid black halos at edges of cutout
+        });
+    } else {
+        // fallback until texture has loaded
+        mat = new THREE.MeshLambertMaterial({
+            color: 0xffffff
+        });
+    }
+
+    const mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(w, h, d),
+        mat
+    );
+
     mesh.position.set(x, y, z);
     mesh.userData = { w, h, d };
+    mesh.receiveShadow = true;
+    mesh.castShadow = false;
+
     scene.add(mesh);
     platforms.push(mesh);
 }
+
 
 function createCoin(x, y, z) {
     const mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.1), new THREE.MeshPhongMaterial({ color: 0xffd700 }));
