@@ -472,41 +472,48 @@ function buildWorldFromData(data) {
 
 // --- OBJECT CREATORS ---
 function createPlat(x, y, z, w, h, d) {
-    let mat;
+    // --- invisible collision box ---
+    const box = new THREE.Mesh(
+        new THREE.BoxGeometry(w, h, d),
+        new THREE.MeshBasicMaterial({ visible: false }) // hide sides + bottom
+    );
+    box.position.set(x, y, z);
+    box.userData = { w, h, d };
+    scene.add(box);
+    platforms.push(box);
 
-    // If texture is available, use it. If not, use fallback material (white).
+    // --- visual top plane only ---
+    let tex = null;
+
     if (platformTexture) {
-        // clone so we can set repeat per-platform
-        const tex = platformTexture.clone();
+        tex = platformTexture.clone();
         tex.repeat.set(w / 2, d / 2);
         tex.needsUpdate = true;
-
-        mat = new THREE.MeshLambertMaterial({
-            color: 0xffffff,   // keep white base under the PNG cutout
-            map: tex,
-            transparent: true, // PNG alpha will work
-            alphaTest: 0.1     // avoid black halos at edges of cutout
-        });
-    } else {
-        // fallback until texture has loaded
-        mat = new THREE.MeshLambertMaterial({
-            color: 0xffffff
-        });
     }
 
-    const mesh = new THREE.Mesh(
-        new THREE.BoxGeometry(w, h, d),
-        mat
+    const topMat = new THREE.MeshLambertMaterial({
+        color: 0xffffff,
+        map: tex,
+        transparent: true,
+        alphaTest: 0.1
+    });
+
+    const topPlane = new THREE.Mesh(
+        new THREE.PlaneGeometry(w, d),
+        topMat
     );
 
-    mesh.position.set(x, y, z);
-    mesh.userData = { w, h, d };
-    mesh.receiveShadow = true;
-    mesh.castShadow = false;
+    // Rotate to lie flat horizontally
+    topPlane.rotation.x = -Math.PI / 2;
 
-    scene.add(mesh);
-    platforms.push(mesh);
+    // Position it exactly on top of the collision box
+    topPlane.position.set(x, y + h / 2 + 0.01, z);
+
+    topPlane.receiveShadow = true;
+
+    scene.add(topPlane);
 }
+
 
 
 function createCoin(x, y, z) {
