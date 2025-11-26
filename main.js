@@ -158,8 +158,11 @@ async function syncAndBuildWorld() {
                 await setDoc(worldDocRef, worldData);
             }
         } catch (e) {
-            console.error("Fout bij ophalen wereld:", e);
-            worldData = generateWorldData(); // Fallback
+            console.error("Fout bij ophalen wereld (waarschijnlijk rechten):", e);
+            // Laat de gebruiker zien dat er iets mis is!
+            ui.status.innerHTML = "⚠️ <strong>Database Fout:</strong> Toegang geweigerd.<br><small>Check je Firestore Rules in de Console.</small>";
+            ui.status.className = "bg-red-100 text-red-800 p-3 rounded mb-4 border border-red-400";
+            worldData = generateWorldData(); // Fallback naar offline
         }
     } else {
         worldData = generateWorldData();
@@ -172,7 +175,9 @@ async function syncAndBuildWorld() {
     }
 
     buildWorldFromData(worldData);
-    ui.status.innerText = "Veel plezier!";
+    if (!ui.status.innerText.includes("Fout")) {
+        ui.status.innerText = "Veel plezier!";
+    }
 }
 
 function generateWorldData() {
@@ -240,7 +245,7 @@ function createEnemy(x,y,z) {
 function listenToPlayers() {
     const playersRef = collection(db, "players");
     
-    // Update de teller direct, ook als je alleen bent
+    // Update de teller direct
     ui.peers.innerText = "1";
 
     onSnapshot(playersRef, (snap) => {
@@ -264,11 +269,16 @@ function listenToPlayers() {
             otherPlayers[id].label.position.copy(otherPlayers[id].mesh.position).add(new THREE.Vector3(0, 2.5, 0));
         });
 
-        // Update Peer Count (+1 voor jezelf)
+        // Update Peer Count
         ui.peers.innerText = Object.keys(otherPlayers).length + 1;
+    }, (error) => {
+        // FOUTAFHANDELING: Dit is de belangrijkste toevoeging!
+        console.error("Snapshot error:", error);
+        ui.status.innerHTML = "❌ <strong>Database Toegang Geweigerd!</strong><br><small>Je regels staan waarschijnlijk te streng.</small>";
+        ui.status.className = "bg-red-600 text-white p-3 rounded mb-4 font-bold border-4 border-red-800";
     });
 
-    // Cleanup loop loskoppelen van snapshot, zodat deze altijd draait
+    // Cleanup loop
     setInterval(() => {
         const now = Date.now();
         for (const [id, player] of Object.entries(otherPlayers)) {
@@ -299,6 +309,8 @@ function startBroadcasting() {
                     z: player.position.z,
                     rot: player.rotation.y, 
                     lastUpdate: now 
+                }).catch(e => {
+                    console.error("Kan positie niet sturen:", e);
                 });
                 lastSent = now;
                 lastPos.copy(player.position);
