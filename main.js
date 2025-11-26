@@ -28,6 +28,12 @@ let currentAction = null;
 let modelLoaded = false;
 let platformTexture = null;
 
+const MODEL_SCALES = {
+    'fantasy_villager_1.0.glb': 1.2,   // increase size
+    'option2.glb': 0.45,               // shrink
+    'default': 1                      // fallback
+};
+
 // Trip Mode Variabelen
 let isTripping = false;
 let tripTimer = null;
@@ -231,8 +237,9 @@ function loadPlayerModel(model) {
             console.log("Model loaded successfully!", gltf);
             playerModel = gltf.scene;
 
-            // Schaal het model indien nodig
-            playerModel.scale.set(2, 2, 2);
+            // Use per-model scale
+            const scale = MODEL_SCALES[model] || MODEL_SCALES['default'];
+            playerModel.scale.set(scale, scale, scale);
 
             // Roteer het model zodat het naar voren kijkt
             playerModel.rotation.y = Math.PI;
@@ -630,11 +637,6 @@ function loadPreviewModel(el, modelFile) {
         const container = new THREE.Object3D();
         container.add(gltf.scene);
 
-        const MODEL_SCALES = {
-            'fantasy_villager_1.0.glb': 1.2,   // increase size
-            'option2.glb': 0.45,               // shrink
-            'default': 1                      // fallback
-        };
         const scale = MODEL_SCALES[modelFile] || MODEL_SCALES['default'];
         container.scale.set(scale, scale, scale);
         container.rotation.y = Math.PI;
