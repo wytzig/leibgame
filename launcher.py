@@ -23,17 +23,15 @@ def start_server():
 def main():
     print("--- Leib Weissman Game Launcher ---")
     
-    # 1. CRUCIALE FIX: Verander de huidige werkmap naar de map van dit script
-    # Dit zorgt ervoor dat de server de bestanden (index.html, main.js, etc.) vindt.
+    # Navigeer naar de map van het script (BELANGRIJK!)
     script_dir = os.path.dirname(os.path.abspath(__file__))
     os.chdir(script_dir)
     print(f"Werkmap ingesteld op: {script_dir}")
     
     print("Bezig met starten...")
     
-    # Controleer of index.html bestaat
     if not os.path.exists("index.html"):
-        print("FOUT: index.html niet gevonden in de map. Controleer of het bestand er staat.")
+        print("FOUT: index.html niet gevonden in deze map!")
         input("Druk op Enter om af te sluiten...")
         return
 
@@ -42,15 +40,12 @@ def main():
     server_thread.daemon = True
     server_thread.start()
 
-    # Wacht even zodat de server kan opspinnen
     time.sleep(1)
 
-    # Open browser
     url = f"http://localhost:{PORT}"
     print(f"Browser openen op {url}")
     webbrowser.open(url)
 
-    # Houd het script draaiende
     try:
         while True:
             time.sleep(1)

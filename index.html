@@ -3,73 +3,61 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Leib Weissman: Wolken naar Koning Willem</title>
+    <title>Leib Weissman: Multiplayer Cloud Jumper</title>
     <link rel="stylesheet" href="style.css">
-    <!-- Three.js laden via CDN -->
-    <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
     <script type="importmap">
-      {
-        "imports": {
-          "three": "https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.module.js"
+        {
+            "imports": {
+                "three": "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.module.js"
+            }
         }
-      }
     </script>
 </head>
 <body>
 
-    <!-- Richtkruis voor het spugen -->
-    <div id="crosshair">+</div>
-
-    <!-- Visuele overlay voor de trip-modus -->
-    <div id="trip-overlay"></div>
-
-    <!-- HUD (Heads Up Display) -->
-    <div id="hud">
-        <div id="stats">
-            <div>Tijd: <span id="time-display">0.0</span> s</div>
-            <div>Munten: <span id="coin-display">0</span> / 10</div>
+    <!-- HUD -->
+    <div class="ui-container">
+        <div class="flex justify-between p-4 bg-gray-900 bg-opacity-70 text-white rounded-b-lg mx-auto max-w-2xl mt-0">
+            <div>
+                <span class="text-xs font-semibold uppercase block opacity-70">Speler</span>
+                <span id="player-name-display" class="text-yellow-400 font-bold">Gast</span>
+                <span class="text-green-400 text-sm mt-1 block">(Online: <span id="peer-count">0</span>)</span>
+            </div>
+            <div class="text-right">
+                <span class="text-xs font-semibold uppercase block opacity-70">Munten</span>
+                <span id="coin-display" class="text-2xl font-bold">0</span>
+            </div>
         </div>
-        <div id="controls-hint">
-            WASD = Bewegen<br>
-            SPATIE = Springen<br>
-            Muis = Kijken & Mikken<br>
-            L-Klik = Spugen (Aanval)<br>
-            ENTER = Roken (-1 Munt)<br>
-        </div>
-        <div id="status-msg"></div>
+        <div id="status-msg" class="text-center mt-2 text-white font-bold text-lg drop-shadow-lg"></div>
     </div>
 
-    <!-- Startscherm -->
+    <!-- Start Scherm -->
     <div id="start-screen" class="overlay active">
-        <div class="menu-box">
-            <h1>Leib Weissman</h1>
-            <h2>Wolken naar Koning Willem</h2>
-            <p><strong>Nieuw:</strong> Pas op voor de Boze Manen!</p>
-            <p>Gebruik <strong>Linkermuisknop</strong> om ze neer te spugen.</p>
-            <p>Verzamel 10 munten en bereik het kasteel.</p>
-            <button id="start-btn">Start Spel</button>
+        <div class="game-card">
+            <h1 class="text-4xl font-bold text-gray-900 mb-2">Leib Weissman</h1>
+            <h2 class="text-xl text-indigo-600 mb-6 font-bold">Multiplayer Cloud Jumper</h2>
+            
+            <div id="auth-status" class="text-sm p-3 mb-4 bg-blue-100 text-blue-800 rounded-lg">Verbinding maken met server...</div>
+
+            <div class="mb-6">
+                <label class="block text-left text-gray-700 text-sm font-bold mb-2" for="username">Kies je naam:</label>
+                <input class="shadow appearance-none border rounded w-full py-3 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" id="username-input" type="text" placeholder="Bijv. LeibStrijder" maxlength="12">
+            </div>
+
+            <div class="text-left text-sm p-4 bg-gray-100 rounded-lg mb-6">
+                <p><strong>Controls:</strong> WASD (Loop) | Spatie (Spring) | Muis (Kijk) | Klik (Spuug)</p>
+            </div>
+            
+            <button id="start-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-full transition duration-300 w-full text-lg cursor-not-allowed opacity-50" disabled>
+                Start Spel
+            </button>
         </div>
     </div>
 
-    <!-- Pauzescherm -->
-    <div id="pause-screen" class="overlay">
-        <div class="menu-box">
-            <h1>Pauze</h1>
-            <button id="resume-btn">Ga Verder</button>
-        </div>
-    </div>
-
-    <!-- Game Over / Win Scherm -->
-    <div id="game-over-screen" class="overlay">
-        <div class="menu-box">
-            <h1 id="go-title">Game Over</h1>
-            <p id="go-reason">Reden...</p>
-            <p>Totale tijd: <span id="go-time">0</span>s</p>
-            <button onclick="location.reload()">Opnieuw Spelen</button>
-        </div>
-    </div>
-
-    <!-- Hoofd script -->
+    <div id="pause-screen" class="overlay"><div class="game-card"><h1>PAUZE</h1><button id="resume-btn" class="bg-green-600 text-white px-6 py-3 rounded-full mt-4">Verder</button></div></div>
+    <div id="game-over-screen" class="overlay"><div class="game-card"><h1>GAME OVER</h1><p id="go-reason" class="text-red-600 mb-4"></p><button onclick="window.location.reload();" class="bg-red-600 text-white px-6 py-3 rounded-full">Opnieuw</button></div></div>
+    
     <script type="module" src="main.js"></script>
 </body>
 </html>
