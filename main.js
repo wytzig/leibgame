@@ -306,13 +306,14 @@ function animate() {
         velocity.x -= velocity.x * 10 * delta;
         velocity.z -= velocity.z * 10 * delta;
 
+        // FIX: Gebruik hier MOVE_SPEED en .clone() om mutatie te voorkomen
         const fwd = new THREE.Vector3(0,0,-1).applyEuler(player.rotation);
         const right = new THREE.Vector3(1,0,0).applyEuler(player.rotation);
 
-        if(moveF) velocity.add(fwd.multiplyScalar(SPEED * delta * 10));
-        if(moveB) velocity.add(fwd.multiplyScalar(-SPEED * delta * 10));
-        if(moveL) velocity.add(right.multiplyScalar(-SPEED * delta * 10));
-        if(moveR) velocity.add(right.multiplyScalar(SPEED * delta * 10));
+        if(moveF) velocity.add(fwd.clone().multiplyScalar(MOVE_SPEED * delta * 10));
+        if(moveB) velocity.add(fwd.clone().multiplyScalar(-MOVE_SPEED * delta * 10));
+        if(moveL) velocity.add(right.clone().multiplyScalar(-MOVE_SPEED * delta * 10));
+        if(moveR) velocity.add(right.clone().multiplyScalar(MOVE_SPEED * delta * 10));
 
         player.position.add(velocity.clone().multiplyScalar(delta));
 
@@ -406,12 +407,26 @@ function setupInputs() {
         gameState = 'playing';
     });
     
+    // Voeg Pointer Lock Change listener toe om pauze te detecteren
+    document.addEventListener('pointerlockchange', () => {
+        if(document.pointerLockElement === document.body) {
+            gameState = 'playing';
+            // Zorg ervoor dat UI correct is als we terugkeren
+        } else {
+            // Als we al 'playing' waren en de lock gaat weg, dan pauze
+            if(gameState === 'playing' && gameState !== 'ended') {
+                gameState = 'paused';
+                // Optioneel: toon pauze scherm, maar voor nu is movement stop voldoende
+            }
+        }
+    });
+    
     document.addEventListener('keydown', e => {
         if(e.code === 'KeyW') moveF = true;
         if(e.code === 'KeyS') moveB = true;
         if(e.code === 'KeyA') moveL = true;
         if(e.code === 'KeyD') moveR = true;
-        if(e.code === 'Space' && canJump) { velocity.y = JUMP; canJump = false; }
+        if(e.code === 'Space' && canJump) { velocity.y = JUMP_SPEED; canJump = false; }
         if(e.code === 'Enter') activateWeed();
     });
     document.addEventListener('keyup', e => {
