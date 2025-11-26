@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
-import { getFirestore, doc, setDoc, onSnapshot, collection, deleteDoc } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
+// FIX: 'getDoc' toegevoegd aan imports
+import { getFirestore, doc, setDoc, getDoc, onSnapshot, collection, deleteDoc } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 
 // ==================================================================
 // JOUW FIREBASE CONFIG
@@ -115,7 +116,8 @@ function initThreeJS() {
     player.position.set(0, 5, 0);
     scene.add(player);
 
-    setupWorld();
+    // We wachten nu met het bouwen van de wereld tot er op Start is geklikt
+    // setupInputs() regelt dit nu via syncWorld()
     setupInputs();
     
     window.addEventListener('resize', () => {
@@ -127,33 +129,104 @@ function initThreeJS() {
     animate();
 }
 
-function setupWorld() {
-    // Maak alles leeg bij reset
+// --- WERELD SYNC LOGICA ---
+
+// Stap 1: Haal wereld op of genereer een nieuwe
+async function syncAndBuildWorld() {
+    ui.status.innerText = "Wereld laden...";
+    
+    // Maak alles leeg
     platforms.forEach(p => scene.remove(p)); platforms = [];
     coins.forEach(c => scene.remove(c)); coins = [];
     enemies.forEach(e => scene.remove(e)); enemies = [];
     projectiles.forEach(p => scene.remove(p.mesh)); projectiles = [];
 
-    // Wereld genereren
-    createPlat(0, -2, 0, 10, 2, 10);
+    let worldData = null;
+
+    if (isMultiplayer) {
+        try {
+            const worldDocRef = doc(db, "levels", "main_world");
+            const docSnap = await getDoc(worldDocRef);
+
+            if (docSnap.exists()) {
+                console.log("Bestaande wereld gevonden!");
+                worldData = docSnap.data();
+            } else {
+                console.log("Geen wereld gevonden, nieuwe genereren...");
+                worldData = generateWorldData();
+                // Sla op voor anderen
+                await setDoc(worldDocRef, worldData);
+            }
+        } catch (e) {
+            console.error("Fout bij ophalen wereld:", e);
+            // Fallback naar lokaal als database faalt
+            worldData = generateWorldData();
+        }
+    } else {
+        // Offline modus
+        worldData = generateWorldData();
+    }
+
+    buildWorldFromData(worldData);
+    ui.status.innerText = "Veel plezier!";
+}
+
+// Stap 2: Genereer de data (array met coördinaten)
+function generateWorldData() {
+    const data = {
+        platforms: [],
+        coins: [],
+        enemies: []
+    };
+
+    // Start Platform
+    data.platforms.push({ x: 0, y: -2, z: 0, w: 10, h: 2, d: 10 });
+
     let z = -10;
     while(z > CASTLE_Z + 20) {
         let x = (Math.random() - 0.5) * 30;
         let y = (Math.random() - 0.5) * 6;
         let w = 3 + Math.random() * 5;
-        createPlat(x, y, z, w, 1 + Math.random()*2, 3 + Math.random()*5);
+        let h = 1 + Math.random() * 2;
+        let d = 3 + Math.random() * 5;
+
+        data.platforms.push({ x, y, z, w, h, d });
         
-        if(Math.random() > 0.4) createCoin(x, y+2, z);
-        if(Math.random() > 0.7) createEnemy(x, y+3, z);
+        if(Math.random() > 0.4) data.coins.push({ x, y: y+2, z });
+        if(Math.random() > 0.7) data.enemies.push({ x, y: y+3, z });
+        
         z -= (4 + Math.random() * 4);
     }
-    createPlat(0, 0, CASTLE_Z, 20, 2, 20); 
+    // Eind platform
+    data.platforms.push({ x: 0, y: 0, z: CASTLE_Z, w: 20, h: 2, d: 20 });
     
-    // Kasteel
+    return data;
+}
+
+// Stap 3: Bouw de 3D objecten op basis van data
+function buildWorldFromData(data) {
+    // Platforms bouwen
+    data.platforms.forEach(p => {
+        createPlat(p.x, p.y, p.z, p.w, p.h, p.d);
+    });
+
+    // Munten bouwen
+    data.coins.forEach(c => {
+        createCoin(c.x, c.y, c.z);
+    });
+
+    // Vijanden bouwen
+    data.enemies.forEach(e => {
+        createEnemy(e.x, e.y, e.z);
+    });
+
+    // Kasteel (altijd op vaste plek)
     const tower = new THREE.Mesh(new THREE.BoxGeometry(6,12,6), new THREE.MeshStandardMaterial({color:0x888888}));
     tower.position.set(0, 6, CASTLE_Z);
     scene.add(tower);
 }
+
+// --- OBJECT CREATORS ---
 
 function createPlat(x,y,z,w,h,d) {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), new THREE.MeshLambertMaterial({color: 0xdddddd}));
@@ -186,39 +259,43 @@ function startMultiplayer() {
     // 1. Luister naar anderen
     onSnapshot(playersRef, (snap) => {
         let count = 0;
+        const now = Date.now();
+
         snap.forEach(docSnap => {
             const id = docSnap.id;
             if(id === userId) return;
             const data = docSnap.data();
             
-            // Timeout check (10s)
-            if(Date.now() - data.lastUpdate > 10000) {
-                if(otherPlayers[id]) { 
-                    scene.remove(otherPlayers[id].mesh); 
-                    scene.remove(otherPlayers[id].label);
-                    delete otherPlayers[id]; 
-                }
-                return;
-            }
-
-            count++;
-            if(!otherPlayers[id]) {
+            // Sync check
+            if (!otherPlayers[id]) {
                 const mesh = new THREE.Mesh(new THREE.BoxGeometry(1,2,1), new THREE.MeshStandardMaterial({color: 0xff0000}));
                 scene.add(mesh);
                 const label = createNameLabel(data.name || "Onbekend");
                 scene.add(label);
-                otherPlayers[id] = { mesh, label };
+                otherPlayers[id] = { mesh, label, lastSeen: now };
             }
             
+            otherPlayers[id].lastSeen = now;
+
+            // Positie updaten
             otherPlayers[id].mesh.position.lerp(new THREE.Vector3(data.x, data.y, data.z), 0.3);
             otherPlayers[id].mesh.rotation.y = data.rot;
             otherPlayers[id].label.position.copy(otherPlayers[id].mesh.position).add(new THREE.Vector3(0, 2.5, 0));
+            count++;
         });
-        ui.peers.innerText = count;
+
+        // Opruimen
+        for (const [id, player] of Object.entries(otherPlayers)) {
+            if (now - player.lastSeen > 10000) {
+                scene.remove(player.mesh);
+                scene.remove(player.label);
+                delete otherPlayers[id];
+            }
+        }
+        ui.peers.innerText = Object.keys(otherPlayers).length;
     });
 
-    // 2. Eigen data sturen (GEOPTIMALISEERD)
-    // We sturen alleen als we bewogen hebben, en max elke 250ms (4x per sec)
+    // 2. Eigen data sturen
     let lastSent = 0;
     let lastPos = new THREE.Vector3();
     
@@ -227,21 +304,20 @@ function startMultiplayer() {
             const now = Date.now();
             const dist = player.position.distanceTo(lastPos);
             
-            // Stuur update als: 250ms voorbij is EN (speler heeft >0.1 bewogen OF tijd > 2000ms voor heartbeat)
-            if (now - lastSent > 250 && (dist > 0.1 || now - lastSent > 2000)) {
+            if (now - lastSent > 100 && (dist > 0.05 || now - lastSent > 2000)) {
                 setDoc(doc(db, "players", userId), {
                     name: myName,
                     x: player.position.x, 
                     y: player.position.y, 
                     z: player.position.z,
                     rot: player.rotation.y, 
-                    lastUpdate: now
+                    lastUpdate: now 
                 });
                 lastSent = now;
                 lastPos.copy(player.position);
             }
         }
-    }, 250); // Check interval
+    }, 100);
 
     window.addEventListener('beforeunload', () => deleteDoc(doc(db, "players", userId)));
 }
@@ -271,7 +347,7 @@ function activateWeed() {
     
     isTripping = true;
     document.body.classList.add('tripping');
-    targetGravity = TRIP_GRAVITY; // Minder zwaartekracht!
+    targetGravity = TRIP_GRAVITY; 
     
     clearTimeout(tripTimer);
     tripTimer = setTimeout(() => {
@@ -294,19 +370,14 @@ function animate() {
     const delta = 0.016; 
 
     if(gameState === 'playing') {
-        // 1. Zwaartekracht & Trip Effecten
         currentGravity = THREE.MathUtils.lerp(currentGravity, targetGravity, delta * 2);
-        
-        // Visuele overgang
         scene.fog.color.lerp(isTripping ? tripFog : baseFog, delta * 2);
         scene.background.lerp(isTripping ? tripBg : baseBg, delta * 2);
 
-        // 2. Physics
         velocity.y -= currentGravity * delta;
         velocity.x -= velocity.x * 10 * delta;
         velocity.z -= velocity.z * 10 * delta;
 
-        // FIX: Gebruik hier MOVE_SPEED en .clone() om mutatie te voorkomen
         const fwd = new THREE.Vector3(0,0,-1).applyEuler(player.rotation);
         const right = new THREE.Vector3(1,0,0).applyEuler(player.rotation);
 
@@ -317,24 +388,22 @@ function animate() {
 
         player.position.add(velocity.clone().multiplyScalar(delta));
 
-        // 3. Van de map vallen
         if(player.position.y < -30) {
             endGame("Je bent in de afgrond gevallen!");
         }
 
-        // 4. Platform Collision
         platforms.forEach(p => {
             if(Math.abs(player.position.x - p.position.x) < p.userData.w/2 + 0.4 &&
                Math.abs(player.position.z - p.position.z) < p.userData.d/2 + 0.4) {
-                if(player.position.y > p.position.y && player.position.y < p.position.y + 2 && velocity.y <= 0) {
-                    player.position.y = p.position.y + 1 + p.userData.h/2;
+                
+                if(player.position.y > p.position.y && player.position.y < p.position.y + 3 && velocity.y <= 0) {
+                    player.position.y = p.position.y + p.userData.h/2 + 1.01;
                     velocity.y = 0;
                     canJump = true;
                 }
             }
         });
 
-        // 5. Munten Verzamelen
         for(let i = coins.length - 1; i >= 0; i--) {
             if(player.position.distanceTo(coins[i].position) < 1.5) {
                 scene.remove(coins[i]);
@@ -344,16 +413,11 @@ function animate() {
             }
         }
 
-        // 6. Vijanden & Projectielen
-        // Vijanden draaien naar speler
         enemies.forEach(e => e.lookAt(player.position.x, e.position.y, player.position.z));
 
-        // Check botsing speler <-> vijand
         for(let i = enemies.length - 1; i >= 0; i--) {
             if(player.position.distanceTo(enemies[i].position) < 2.0) {
-                // Botsing!
-                velocity.y = 10; // Knockback
-                velocity.z += 10;
+                velocity.y = 10; velocity.z += 10;
                 if(coinsCollected > 0) {
                     coinsCollected = Math.max(0, coinsCollected - 3);
                     ui.coins.innerText = coinsCollected;
@@ -363,13 +427,11 @@ function animate() {
             }
         }
 
-        // Projectielen updaten
         for(let i = projectiles.length - 1; i >= 0; i--) {
             const p = projectiles[i];
             p.mesh.position.add(p.velocity.clone().multiplyScalar(delta));
             p.life -= delta;
 
-            // Raakt projectiel een vijand?
             let hit = false;
             for(let j = enemies.length - 1; j >= 0; j--) {
                 if(p.mesh.position.distanceTo(enemies[j].position) < 2.0) {
@@ -386,7 +448,6 @@ function animate() {
             }
         }
 
-        // Camera Volgen
         camera.position.lerp(player.position.clone().add(new THREE.Vector3(0,4,8).applyEuler(player.rotation)), 0.1);
         camera.lookAt(player.position.clone().add(new THREE.Vector3(0,2,0)));
     }
@@ -394,30 +455,26 @@ function animate() {
 }
 
 function setupInputs() {
-    ui.btn.addEventListener('click', () => {
+    ui.btn.addEventListener('click', async () => {
         const inputName = ui.nameInput.value.trim();
         if(inputName) myName = inputName;
         ui.nameDisplay.innerText = myName;
 
         if(isMultiplayer) startMultiplayer();
 
+        // WACHT tot wereld geladen/gegenereerd is
+        await syncAndBuildWorld();
+
         ui.start.classList.remove('active');
         document.body.requestPointerLock();
-        setupWorld(); // Reset wereld bij start
         gameState = 'playing';
     });
     
-    // Voeg Pointer Lock Change listener toe om pauze te detecteren
     document.addEventListener('pointerlockchange', () => {
         if(document.pointerLockElement === document.body) {
             gameState = 'playing';
-            // Zorg ervoor dat UI correct is als we terugkeren
         } else {
-            // Als we al 'playing' waren en de lock gaat weg, dan pauze
-            if(gameState === 'playing' && gameState !== 'ended') {
-                gameState = 'paused';
-                // Optioneel: toon pauze scherm, maar voor nu is movement stop voldoende
-            }
+            if(gameState === 'playing' && gameState !== 'ended') gameState = 'paused';
         }
     });
     
@@ -443,15 +500,9 @@ function setupInputs() {
             const ball = new THREE.Mesh(new THREE.SphereGeometry(0.2), new THREE.MeshBasicMaterial({color:0x00ffff}));
             ball.position.copy(player.position).add(new THREE.Vector3(0,1.5,0));
             scene.add(ball);
-            
             let dir = new THREE.Vector3();
             camera.getWorldDirection(dir);
-            
-            projectiles.push({
-                mesh: ball,
-                velocity: dir.multiplyScalar(30),
-                life: 2.0
-            });
+            projectiles.push({ mesh: ball, velocity: dir.multiplyScalar(30), life: 2.0 });
         }
     });
 }
