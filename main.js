@@ -5,7 +5,7 @@ import { getFirestore, doc, setDoc, getDoc, onSnapshot, collection, deleteDoc } 
 
 // ==================================================================
 // JOUW FIREBASE CONFIG
-// ==================================================================
+// ========================@==========================================
 const firebaseConfig = {
   apiKey: window.env.VITE_API_KEY,
   authDomain: window.env.VITE_AUTH_DOMAIN,
@@ -388,10 +388,12 @@ function animate() {
 
         player.position.add(velocity.clone().multiplyScalar(delta));
 
+        // FALL CHECK
         if(player.position.y < -30) {
             endGame("Je bent in de afgrond gevallen!");
         }
 
+        // PLATFORM COLLISIONS
         platforms.forEach(p => {
             if(Math.abs(player.position.x - p.position.x) < p.userData.w/2 + 0.4 &&
                Math.abs(player.position.z - p.position.z) < p.userData.d/2 + 0.4) {
@@ -404,6 +406,18 @@ function animate() {
             }
         });
 
+        // WIN CHECK: reached the castle end platform / tower
+        // Tune the tolerances (+5, 10, 12) if your end platform has different size/height.
+        if (player.position.z <= CASTLE_Z + 5 &&
+            Math.abs(player.position.x) < 10 &&
+            player.position.y <= 12) {
+            // Prevent double-triggering if already ending
+            if (gameState !== 'ended') {
+                endGame("Je hebt het kasteel bereikt! Je wint!");
+            }
+        }
+
+        // COIN PICKUP
         for(let i = coins.length - 1; i >= 0; i--) {
             if(player.position.distanceTo(coins[i].position) < 1.5) {
                 scene.remove(coins[i]);
@@ -413,8 +427,10 @@ function animate() {
             }
         }
 
+        // ENEMIES LOOK AT PLAYER
         enemies.forEach(e => e.lookAt(player.position.x, e.position.y, player.position.z));
 
+        // ENEMY COLLISIONS
         for(let i = enemies.length - 1; i >= 0; i--) {
             if(player.position.distanceTo(enemies[i].position) < 2.0) {
                 velocity.y = 10; velocity.z += 10;
@@ -427,6 +443,7 @@ function animate() {
             }
         }
 
+        // PROJECTILES
         for(let i = projectiles.length - 1; i >= 0; i--) {
             const p = projectiles[i];
             p.mesh.position.add(p.velocity.clone().multiplyScalar(delta));
