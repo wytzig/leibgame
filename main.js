@@ -7,12 +7,12 @@ import { getFirestore, doc, setDoc, getDoc, onSnapshot, collection, deleteDoc } 
 // JOUW FIREBASE CONFIG
 // ==================================================================
 const firebaseConfig = {
-  apiKey: "AIzaSyBflwkHnZtXhlcOEhXutGd-tWriWvadqGU",
-  authDomain: "leibgame-c7d34.firebaseapp.com",
-  projectId: "leibgame-c7d34",
-  storageBucket: "leibgame-c7d34.firebasestorage.app",
-  messagingSenderId: "118964504250",
-  appId: "1:118964504250:web:63e25bb0512060acb82483"
+  apiKey: window.env.VITE_API_KEY,
+  authDomain: window.env.VITE_AUTH_DOMAIN,
+  projectId: window.env.VITE_PROJECT_ID,
+  storageBucket: window.env.VITE_STORAGE_BUCKET,
+  messagingSenderId: window.env.VITE_MESSAGING_SENDER_ID,
+  appId: window.env.VITE_APP_ID
 };
 
 // Instellingen
