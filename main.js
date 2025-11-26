@@ -73,7 +73,7 @@ window.onload = async () => {
                 ui.btn.disabled = false;
                 ui.btn.classList.remove('opacity-50', 'cursor-not-allowed');
                 
-                // --- FIX: START DIRECT MET LUISTEREN NA SUCCESVOLLE LOGIN ---
+                // --- START DIRECT MET LUISTEREN NA SUCCESVOLLE LOGIN ---
                 listenToPlayers();
             } else {
                 signInAnonymously(auth).catch(console.error);
@@ -297,7 +297,8 @@ function startBroadcasting() {
     let lastPos = new THREE.Vector3();
     
     setInterval(() => {
-        if(gameState === 'playing' && isAuth) {
+        // FIX: Gebruik auth.currentUser.uid om te garanderen dat de speler is ingelogd
+        if(gameState === 'playing' && auth.currentUser && auth.currentUser.uid) { 
             const now = Date.now();
             const dist = player.position.distanceTo(lastPos);
             
@@ -459,7 +460,21 @@ function setupInputs() {
         if(inputName) myName = inputName;
         ui.nameDisplay.innerText = myName;
 
-        if(isMultiplayer) startBroadcasting();
+        if (isMultiplayer) {
+            // FIX: Dwingt de initiële schrijfactie af om de 'players' collectie te creëren.
+            await setDoc(doc(db, "players", userId), { 
+                name: myName, 
+                x: player.position.x, 
+                y: player.position.y, 
+                z: player.position.z,
+                rot: player.rotation.y, 
+                lastUpdate: Date.now() 
+            }).catch(e => {
+                console.error("Fout bij initiële positie zenden:", e);
+            });
+            
+            startBroadcasting(); // Start de periodieke updates
+        }
 
         await syncAndBuildWorld();
 
