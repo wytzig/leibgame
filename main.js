@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
-// FIX: 'getDoc' toegevoegd aan imports
 import { getFirestore, doc, setDoc, getDoc, onSnapshot, collection, deleteDoc } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 
 // ==================================================================
@@ -48,6 +47,8 @@ const ui = {
     start: document.getElementById('start-screen'),
     status: document.getElementById('auth-status'),
     btn: document.getElementById('start-btn'),
+    resumeBtn: document.getElementById('resume-btn'),
+    pauseScreen: document.getElementById('pause-screen'),
     coins: document.getElementById('coin-display'),
     peers: document.getElementById('peer-count'),
     nameDisplay: document.getElementById('player-name-display'),
@@ -116,8 +117,6 @@ function initThreeJS() {
     player.position.set(0, 5, 0);
     scene.add(player);
 
-    // We wachten nu met het bouwen van de wereld tot er op Start is geklikt
-    // setupInputs() regelt dit nu via syncWorld()
     setupInputs();
     
     window.addEventListener('resize', () => {
@@ -131,7 +130,6 @@ function initThreeJS() {
 
 // --- WERELD SYNC LOGICA ---
 
-// Stap 1: Haal wereld op of genereer een nieuwe
 async function syncAndBuildWorld() {
     ui.status.innerText = "Wereld laden...";
     
@@ -154,16 +152,19 @@ async function syncAndBuildWorld() {
             } else {
                 console.log("Geen wereld gevonden, nieuwe genereren...");
                 worldData = generateWorldData();
-                // Sla op voor anderen
                 await setDoc(worldDocRef, worldData);
             }
         } catch (e) {
             console.error("Fout bij ophalen wereld:", e);
-            // Fallback naar lokaal als database faalt
-            worldData = generateWorldData();
+            worldData = generateWorldData(); // Fallback
         }
     } else {
-        // Offline modus
+        worldData = generateWorldData();
+    }
+
+    // Safety check: als data leeg is, genereer alsnog
+    if (!worldData || !worldData.platforms || worldData.platforms.length === 0) {
+        console.warn("Ontvangen wereld data was leeg, fallback naar lokaal.");
         worldData = generateWorldData();
     }
 
@@ -171,13 +172,8 @@ async function syncAndBuildWorld() {
     ui.status.innerText = "Veel plezier!";
 }
 
-// Stap 2: Genereer de data (array met coördinaten)
 function generateWorldData() {
-    const data = {
-        platforms: [],
-        coins: [],
-        enemies: []
-    };
+    const data = { platforms: [], coins: [], enemies: [] };
 
     // Start Platform
     data.platforms.push({ x: 0, y: -2, z: 0, w: 10, h: 2, d: 10 });
@@ -191,36 +187,20 @@ function generateWorldData() {
         let d = 3 + Math.random() * 5;
 
         data.platforms.push({ x, y, z, w, h, d });
-        
         if(Math.random() > 0.4) data.coins.push({ x, y: y+2, z });
         if(Math.random() > 0.7) data.enemies.push({ x, y: y+3, z });
-        
         z -= (4 + Math.random() * 4);
     }
     // Eind platform
     data.platforms.push({ x: 0, y: 0, z: CASTLE_Z, w: 20, h: 2, d: 20 });
-    
     return data;
 }
 
-// Stap 3: Bouw de 3D objecten op basis van data
 function buildWorldFromData(data) {
-    // Platforms bouwen
-    data.platforms.forEach(p => {
-        createPlat(p.x, p.y, p.z, p.w, p.h, p.d);
-    });
+    if(data.platforms) data.platforms.forEach(p => createPlat(p.x, p.y, p.z, p.w, p.h, p.d));
+    if(data.coins) data.coins.forEach(c => createCoin(c.x, c.y, c.z));
+    if(data.enemies) data.enemies.forEach(e => createEnemy(e.x, e.y, e.z));
 
-    // Munten bouwen
-    data.coins.forEach(c => {
-        createCoin(c.x, c.y, c.z);
-    });
-
-    // Vijanden bouwen
-    data.enemies.forEach(e => {
-        createEnemy(e.x, e.y, e.z);
-    });
-
-    // Kasteel (altijd op vaste plek)
     const tower = new THREE.Mesh(new THREE.BoxGeometry(6,12,6), new THREE.MeshStandardMaterial({color:0x888888}));
     tower.position.set(0, 6, CASTLE_Z);
     scene.add(tower);
@@ -256,17 +236,13 @@ function createEnemy(x,y,z) {
 function startMultiplayer() {
     const playersRef = collection(db, "players");
     
-    // 1. Luister naar anderen
     onSnapshot(playersRef, (snap) => {
-        let count = 0;
         const now = Date.now();
-
         snap.forEach(docSnap => {
             const id = docSnap.id;
             if(id === userId) return;
             const data = docSnap.data();
             
-            // Sync check
             if (!otherPlayers[id]) {
                 const mesh = new THREE.Mesh(new THREE.BoxGeometry(1,2,1), new THREE.MeshStandardMaterial({color: 0xff0000}));
                 scene.add(mesh);
@@ -276,15 +252,11 @@ function startMultiplayer() {
             }
             
             otherPlayers[id].lastSeen = now;
-
-            // Positie updaten
             otherPlayers[id].mesh.position.lerp(new THREE.Vector3(data.x, data.y, data.z), 0.3);
             otherPlayers[id].mesh.rotation.y = data.rot;
             otherPlayers[id].label.position.copy(otherPlayers[id].mesh.position).add(new THREE.Vector3(0, 2.5, 0));
-            count++;
         });
 
-        // Opruimen
         for (const [id, player] of Object.entries(otherPlayers)) {
             if (now - player.lastSeen > 10000) {
                 scene.remove(player.mesh);
@@ -295,7 +267,6 @@ function startMultiplayer() {
         ui.peers.innerText = Object.keys(otherPlayers).length;
     });
 
-    // 2. Eigen data sturen
     let lastSent = 0;
     let lastPos = new THREE.Vector3();
     
@@ -462,19 +433,27 @@ function setupInputs() {
 
         if(isMultiplayer) startMultiplayer();
 
-        // WACHT tot wereld geladen/gegenereerd is
         await syncAndBuildWorld();
 
         ui.start.classList.remove('active');
         document.body.requestPointerLock();
         gameState = 'playing';
     });
+
+    // Fix voor pauze scherm
+    ui.resumeBtn.addEventListener('click', () => {
+        document.body.requestPointerLock();
+    });
     
     document.addEventListener('pointerlockchange', () => {
         if(document.pointerLockElement === document.body) {
             gameState = 'playing';
+            ui.pauseScreen.classList.remove('active'); // Verberg pauze
         } else {
-            if(gameState === 'playing' && gameState !== 'ended') gameState = 'paused';
+            if(gameState === 'playing' && gameState !== 'ended') {
+                gameState = 'paused';
+                ui.pauseScreen.classList.add('active'); // Toon pauze
+            }
         }
     });
     
