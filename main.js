@@ -1,20 +1,9 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/loaders/GLTFLoader.js';
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
-import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
-import { getFirestore, doc, setDoc, getDoc, onSnapshot, collection, deleteDoc } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
+import { initFirebase, db, auth } from './firebase.js';
+import { listenToPlayers, startBroadcasting } from './multiplayer.js';
+import { getDoc, setDoc, doc } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 
-// ==================================================================
-// JOUW FIREBASE CONFIG
-// ========================@==========================================
-const firebaseConfig = {
-    apiKey: window.env.VITE_API_KEY,
-    authDomain: window.env.VITE_AUTH_DOMAIN,
-    projectId: window.env.VITE_PROJECT_ID,
-    storageBucket: window.env.VITE_STORAGE_BUCKET,
-    messagingSenderId: window.env.VITE_MESSAGING_SENDER_ID,
-    appId: window.env.VITE_APP_ID
-};
 
 // Instellingen
 const BASE_GRAVITY = 30.0;
@@ -25,7 +14,7 @@ const CASTLE_Z = -300;
 const BUFF_DURATION = 8000;
 
 // Globals
-let app, auth, db, userId, myName = "Speler", isMultiplayer = false;
+let userId, myName = "Speler", isMultiplayer = false;
 let camera, scene, renderer, player, playerModel, mixer, animations = {};
 let velocity = new THREE.Vector3();
 let platforms = [], coins = [], enemies = [], otherPlayers = {}, projectiles = [];
@@ -65,36 +54,21 @@ window.onload = async () => {
     // Start Three.js eerst om visuele feedback te geven
     initThreeJS();
 
-    // Dan Multiplayer opstarten
     try {
         updateStatus("firebase", "🔌 Verbinding maken...", "blue");
 
-        app = initializeApp(firebaseConfig);
-        auth = getAuth(app);
-        db = getFirestore(app);
+        const firebaseGlobals = initFirebase((user) => {
+            userId = user.uid;
+            isMultiplayer = true;
+            console.log("Firebase connected! User ID:", userId);
+            updateStatus("firebase", "✅ Multiplayer verbonden!", "green");
+            checkIfReadyToStart();
 
-        onAuthStateChanged(auth, (user) => {
-            if (user) {
-                userId = user.uid;
-                isMultiplayer = true;
-                console.log("Firebase connected! User ID:", userId);
-                updateStatus("firebase", "✅ Multiplayer verbonden!", "green");
-                checkIfReadyToStart();
-
-                listenToPlayers();
-            } else {
-                console.log("No user yet, signing in anonymously...");
-                updateStatus("firebase", "🔐 Inloggen...", "blue");
-                signInAnonymously(auth).catch((err) => {
-                    console.error("Auth error:", err);
-                    updateStatus("firebase", "❌ Firebase verbinding mislukt", "red");
-                });
-            }
+            listenToPlayers(scene, userId, ui, db);
         });
     } catch (e) {
         console.error("Firebase init error:", e);
         updateStatus("firebase", "⚠️ Offline Modus (Config Fout)", "yellow");
-        // In offline mode, alleen model nodig
         isMultiplayer = false;
         checkIfReadyToStart();
     }
@@ -514,8 +488,6 @@ function createPlat(x, y, z, w, h, d) {
     scene.add(topPlane);
 }
 
-
-
 function createCoin(x, y, z) {
     const mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.1), new THREE.MeshPhongMaterial({ color: 0xffd700 }));
     mesh.position.set(x, y, z);
@@ -530,99 +502,6 @@ function createEnemy(x, y, z) {
     mesh.position.set(x, y, z);
     scene.add(mesh);
     enemies.push(mesh);
-}
-
-// --- MULTIPLAYER CORE ---
-
-function listenToPlayers() {
-    const playersRef = collection(db, "players");
-
-    ui.peers.innerText = "1";
-
-    onSnapshot(playersRef, (snap) => {
-        const now = Date.now();
-        snap.forEach(docSnap => {
-            const id = docSnap.id;
-            if (id === userId) return;
-            const data = docSnap.data();
-
-            if (!otherPlayers[id]) {
-                const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 2, 1), new THREE.MeshStandardMaterial({ color: 0xff0000 }));
-                scene.add(mesh);
-                const label = createNameLabel(data.name || "Onbekend");
-                scene.add(label);
-                otherPlayers[id] = { mesh, label, lastSeen: now };
-            }
-
-            otherPlayers[id].lastSeen = now;
-            otherPlayers[id].mesh.position.lerp(new THREE.Vector3(data.x, data.y, data.z), 0.3);
-            otherPlayers[id].mesh.rotation.y = data.rot;
-            otherPlayers[id].label.position.copy(otherPlayers[id].mesh.position).add(new THREE.Vector3(0, 2.5, 0));
-        });
-
-        ui.peers.innerText = Object.keys(otherPlayers).length + 1;
-    }, (error) => {
-        console.error("Snapshot error:", error);
-        ui.status.innerHTML = "❌ <strong>Database Toegang Geweigerd!</strong><br><small>Je regels staan waarschijnlijk te streng.</small>";
-        ui.status.className = "bg-red-600 text-white p-3 rounded mb-4 font-bold border-4 border-red-800";
-    });
-
-    setInterval(() => {
-        const now = Date.now();
-        for (const [id, player] of Object.entries(otherPlayers)) {
-            if (now - player.lastSeen > 10000) {
-                scene.remove(player.mesh);
-                scene.remove(player.label);
-                delete otherPlayers[id];
-                ui.peers.innerText = Object.keys(otherPlayers).length + 1;
-            }
-        }
-    }, 2000);
-}
-
-function startBroadcasting() {
-    let lastSent = 0;
-    let lastPos = new THREE.Vector3();
-
-    setInterval(() => {
-        if (gameState === 'playing' && auth.currentUser && auth.currentUser.uid) {
-            const now = Date.now();
-            const dist = player.position.distanceTo(lastPos);
-
-            if (now - lastSent > 100 && (dist > 0.05 || now - lastSent > 2000)) {
-                setDoc(doc(db, "players", userId), {
-                    name: myName,
-                    x: player.position.x,
-                    y: player.position.y,
-                    z: player.position.z,
-                    rot: player.rotation.y,
-                    lastUpdate: now
-                }).catch(e => {
-                    console.error("Kan positie niet sturen:", e);
-                });
-                lastSent = now;
-                lastPos.copy(player.position);
-            }
-        }
-    }, 100);
-
-    window.addEventListener('beforeunload', () => deleteDoc(doc(db, "players", userId)));
-}
-
-function createNameLabel(name) {
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    canvas.width = 256; canvas.height = 64;
-    ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
-    ctx.fillRect(0, 0, 256, 64);
-    ctx.font = "Bold 32px Arial";
-    ctx.fillStyle = "white";
-    ctx.textAlign = "center";
-    ctx.fillText(name, 128, 42);
-    const tex = new THREE.CanvasTexture(canvas);
-    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex }));
-    sprite.scale.set(4, 1, 1);
-    return sprite;
 }
 
 // --- GAMEPLAY FUNCTIES ---
@@ -791,7 +670,7 @@ function setupInputs() {
                 console.error("Fout bij initiële positie zenden:", e);
             });
 
-            startBroadcasting();
+            startBroadcasting(player, userId, myName, gameState, db, auth);
         }
 
         await syncAndBuildWorld();
