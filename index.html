@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leib Weissman: Wolken naar Koning Willem</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Three.js laden via CDN -->
+    <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.module.js"
+        }
+      }
+    </script>
+</head>
+<body>
+
+    <!-- Richtkruis voor het spugen -->
+    <div id="crosshair">+</div>
+
+    <!-- Visuele overlay voor de trip-modus -->
+    <div id="trip-overlay"></div>
+
+    <!-- HUD (Heads Up Display) -->
+    <div id="hud">
+        <div id="stats">
+            <div>Tijd: <span id="time-display">0.0</span> s</div>
+            <div>Munten: <span id="coin-display">0</span> / 10</div>
+        </div>
+        <div id="controls-hint">
+            WASD = Bewegen<br>
+            SPATIE = Springen<br>
+            Muis = Kijken & Mikken<br>
+            L-Klik = Spugen (Aanval)<br>
+            ENTER = Roken (-1 Munt)<br>
+        </div>
+        <div id="status-msg"></div>
+    </div>
+
+    <!-- Startscherm -->
+    <div id="start-screen" class="overlay active">
+        <div class="menu-box">
+            <h1>Leib Weissman</h1>
+            <h2>Wolken naar Koning Willem</h2>
+            <p><strong>Nieuw:</strong> Pas op voor de Boze Manen!</p>
+            <p>Gebruik <strong>Linkermuisknop</strong> om ze neer te spugen.</p>
+            <p>Verzamel 10 munten en bereik het kasteel.</p>
+            <button id="start-btn">Start Spel</button>
+        </div>
+    </div>
+
+    <!-- Pauzescherm -->
+    <div id="pause-screen" class="overlay">
+        <div class="menu-box">
+            <h1>Pauze</h1>
+            <button id="resume-btn">Ga Verder</button>
+        </div>
+    </div>
+
+    <!-- Game Over / Win Scherm -->
+    <div id="game-over-screen" class="overlay">
+        <div class="menu-box">
+            <h1 id="go-title">Game Over</h1>
+            <p id="go-reason">Reden...</p>
+            <p>Totale tijd: <span id="go-time">0</span>s</p>
+            <button onclick="location.reload()">Opnieuw Spelen</button>
+        </div>
+    </div>
+
+    <!-- Hoofd script -->
+    <script type="module" src="main.js"></script>
+</body>
+</html>
