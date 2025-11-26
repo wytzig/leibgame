@@ -490,7 +490,9 @@ function setupInputs() {
         if(e.code === 'KeyS') moveB = true;
         if(e.code === 'KeyA') moveL = true;
         if(e.code === 'KeyD') moveR = true;
-        if(e.code === 'Space' && canJump) { velocity.y = JUMP_SPEED; canJump = false; }
+        if(e.code === 'Space') {
+             velocity.y = JUMP_SPEED;
+         }
         if(e.code === 'Enter') activateWeed();
     });
     document.addEventListener('keyup', e => {
