@@ -357,10 +357,14 @@ function activateWeed() {
     }, BUFF_DURATION);
 }
 
-function endGame(reason) {
+function endGame(reason, won = false) {
     gameState = 'ended';
     document.exitPointerLock();
     ui.goReason.innerText = reason;
+    
+    // kleur afhankelijk van winnen/ verliezen
+    ui.goReason.style.color = won ? '#00ff00' : '#ff0000'; // groen of rood
+
     ui.gameOver.classList.add('active');
 }
 
@@ -390,7 +394,7 @@ function animate() {
 
         // FALL CHECK
         if(player.position.y < -30) {
-            endGame("Je bent in de afgrond gevallen!");
+            endGame("Je bent in de afgrond gevallen!", false);
         }
 
         // PLATFORM COLLISIONS
@@ -413,7 +417,7 @@ function animate() {
             player.position.y <= 12) {
             // Prevent double-triggering if already ending
             if (gameState !== 'ended') {
-                endGame("Je hebt het kasteel bereikt! Je wint!");
+                endGame("Je hebt het kasteel bereikt! Je wint!", true);
             }
         }
 
@@ -438,7 +442,7 @@ function animate() {
                     coinsCollected = Math.max(0, coinsCollected - 3);
                     ui.coins.innerText = coinsCollected;
                 } else {
-                    endGame("Gepakt door een vijand!");
+                    endGame("Gepakt door een vijand!", false);
                 }
             }
         }
