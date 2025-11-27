@@ -31,7 +31,9 @@ let platformTexture = null;
 const MODEL_SCALES = {
     'fantasy_villager_1.0.glb': 1.2,   // increase size
     'option2.glb': 0.45,               // shrink
-    'default': 1                      // fallback
+    'Medieval Luuk.glb': 2,                      // fallback
+    'leib.glb': 2,                      // fallback
+    'default': 1                     // fallback
 };
 
 // Trip Mode Variabelen
