@@ -1,6 +1,5 @@
 ### Leib the game
-
- a thrid person RPG platformer
+ a third person RPG platformer
  can you reach the castle of king willem?
 
  ## multiplayer creds

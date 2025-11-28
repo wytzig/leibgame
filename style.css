@@ -20,3 +20,4 @@ canvas { display: block; }
 .tripping canvas { filter: hue-rotate(180deg) saturate(2) contrast(1.2); animation: trip 8s infinite alternate; }
 
 @keyframes trip { from { filter: hue-rotate(0deg); } to { filter: hue-rotate(360deg); } }
+
