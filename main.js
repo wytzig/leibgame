@@ -21,7 +21,7 @@ let userId, myName = "Speler", isMultiplayer = false;
 let camera, scene, renderer, player, playerModel, mixer, animations = {};
 let velocity = new THREE.Vector3();
 let platforms = [], coins = [], enemies = [], otherPlayers = {}, projectiles = [];
-let gameState = 'start', canJump = true, coinsCollected = 0;
+let gameState = 'start', coinsCollected = 0;
 let moveF = false, moveB = false, moveL = false, moveR = false;
 let textureLoader;
 let currentAction = null;
@@ -215,17 +215,6 @@ function addPlayerLights() {
     player.add(pointLight);
 }
 
-function logChildren(obj, depth = 0) {
-    console.log(
-        " ".repeat(depth * 2),
-        obj.name || "[no name]",
-        obj.type,
-        "isMesh:", obj.isMesh
-    );
-    obj.children.forEach(child => logChildren(child, depth + 1));
-}
-
-
 function loadPlayerModel(model) {
     const loader = new GLTFLoader();
 
@@ -256,7 +245,6 @@ function loadPlayerModel(model) {
 
             // Add model to the player container
             player.add(playerModel);
-            logChildren(playerModel);
 
             // --- ANIMATION SETUP START ---
             if (gltf.animations && gltf.animations.length > 0) {
@@ -444,11 +432,11 @@ function animate() {
 
         const isMoving = moveF || moveB || moveL || moveR;
 
-        if (!canJump && Math.abs(velocity.y) > 1) {
+        if (Math.abs(velocity.y) > 1) {
             playAnimation('jump');
-        } else if (isMoving && canJump) {
+        } else if (isMoving) {
             playAnimation('run');
-        } else if (canJump) {
+        } else {
             playAnimation('idle');
         }
 
@@ -460,11 +448,11 @@ function animate() {
         player.position.add(velocity.clone().multiplyScalar(delta));
 
         // Animation state machine
-        if (!canJump && Math.abs(velocity.y) > 1) {
+        if (Math.abs(velocity.y) > 1) {
             playAnimation('jump');
-        } else if (isMoving && canJump) {
+        } else if (isMoving) {
             playAnimation('run');
-        } else if (canJump) {
+        } else{
             playAnimation('idle');
         }
 
@@ -481,7 +469,6 @@ function animate() {
                 if (player.position.y > p.position.y && player.position.y < p.position.y + 3 && velocity.y <= 0) {
                     player.position.y = p.position.y + p.userData.h / 2 + 1.01;
                     velocity.y = 0;
-                    canJump = true;
                 }
             }
         });
