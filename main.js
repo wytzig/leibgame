@@ -29,9 +29,9 @@ let modelLoaded = false;
 let platformTexture = null;
 
 const MODEL_SCALES = {
-    'option2.glb': 0.45,               // shrink
-    'medieval_luuk.glb': 1.3,                      // fallback
-    'leib.glb': 1.3,                      // fallback
+    'option2.glb': 0.45,
+    'medieval_luuk.glb': 1.3, 
+    'leib.glb': 1.3,
 };
 
 // Trip Mode Variabelen
@@ -233,8 +233,8 @@ function loadPlayerModel(model) {
     // Hier koppel je de bestandsnaam aan de juiste animatie-indexen
     const ANIMATION_MAPPING = {
         'option2.glb':       { idle: 10, run: 0, jump: 9 },
-        'mediaval_luuk.glb': { idle: 0,  run: 3, jump: 1 },
-        'leib.glb':          { idle: 2,  run: 4, jump: 3 }
+        'medieval_luuk.glb': { idle: 5,  run: 2, jump: 0 },
+        'leib.glb':          { idle: 7,  run: 2, jump: 3 }
     };
     // -----------------------------------------
 
@@ -423,7 +423,7 @@ function animate() {
 
     // --- DEBUG LOGGING (Elke 500ms) ---
     if (now - lastDebugTime > 500) { 
-        debugAnimations();
+        // debugAnimations();
         lastDebugTime = now;
     }
     
