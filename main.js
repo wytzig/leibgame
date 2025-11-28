@@ -4,6 +4,7 @@ import { initFirebase, db, auth } from './firebase.js';
 import { listenToPlayers, startBroadcasting } from './multiplayer.js';
 import { getDoc, setDoc, doc } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 import { syncAndBuildWorld } from './world.js';
+import { MobileControls } from './mobile-controls.js';
 
 let selectedModelFile = 'leib.glb'; // default
 
@@ -26,6 +27,7 @@ let textureLoader;
 let currentAction = null;
 let modelLoaded = false;
 let platformTexture = null;
+let mobile = null // mobile support
 
 const MODEL_SCALES = {
     'option2.glb': 0.45,
@@ -58,9 +60,32 @@ const ui = {
     goReason: document.getElementById('go-reason')
 };
 
+function handleMobileControls(mobile) {
+    mobile.onJump = () => {
+        velocity.y = JUMP_SPEED;
+        isGrounded = false;
+    };
+
+    mobile.onShoot = () => {
+        // Your existing projectile code:
+        const ball = new THREE.Mesh(new THREE.SphereGeometry(0.2), new THREE.MeshBasicMaterial({ color: 0x00ffff }));
+        ball.position.copy(player.position).add(new THREE.Vector3(0, 1.5, 0));
+        scene.add(ball);
+        let dir = new THREE.Vector3();
+        camera.getWorldDirection(dir);
+        projectiles.push({ mesh: ball, velocity: dir.multiplyScalar(30), life: 2.0 });
+    };
+
+    mobile.onAbility = () => {
+        activateWeed();
+    };
+}
+
 window.onload = async () => {
     // Start Three.js eerst om visuele feedback te geven
     initThreeJS();
+    mobile = new MobileControls();
+    handleMobileControls(mobile)
 
     try {
         updateStatus("firebase", "🔌 Verbinding maken...", "blue");
@@ -271,7 +296,7 @@ function loadPlayerModel(model) {
 
                 // Play idle by default
                 playAnimation('idle');
-                
+
             } else {
                 console.warn("No animations found in this GLB file.");
             }
@@ -370,7 +395,6 @@ function playAnimation(name) {
 }
 
 // --- GAMEPLAY FUNCTIES ---
-
 function activateWeed() {
     if (gameState !== 'playing' || coinsCollected < 1 || isTripping) return;
     coinsCollected--;
@@ -419,17 +443,19 @@ function updateAnimation(isMoving) {
 
 // --- GAME LOOP ---
 let currentAnimation = '';
-let isGrounded = false; 
+let isGrounded = false;
 
 function animate() {
     requestAnimationFrame(animate);
     const now = Date.now();
     const delta = 0.016;
-    
+
     // Update animations
     if (mixer) mixer.update(delta);
 
     if (gameState === 'playing') {
+
+        // desktop controls 
         currentGravity = THREE.MathUtils.lerp(currentGravity, targetGravity, delta * 2);
         scene.fog.color.lerp(isTripping ? tripFog : baseFog, delta * 2);
         scene.background.lerp(isTripping ? tripBg : baseBg, delta * 2);
@@ -441,6 +467,20 @@ function animate() {
         const fwd = new THREE.Vector3(0, 0, -1).applyEuler(player.rotation);
         const right = new THREE.Vector3(1, 0, 0).applyEuler(player.rotation);
 
+        
+        // mobile controls
+        if (mobile.enabled) {
+            const m = mobile.update();
+
+            if (m.forward) velocity.add(fwd.clone().multiplyScalar(MOVE_SPEED * delta * 10 * m.forward));
+            if (m.backward) velocity.add(fwd.clone().multiplyScalar(-MOVE_SPEED * delta * 10 * m.backward));
+            if (m.left) velocity.add(right.clone().multiplyScalar(-MOVE_SPEED * delta * 10 * m.left));
+            if (m.right) velocity.add(right.clone().multiplyScalar(MOVE_SPEED * delta * 10 * m.right));
+
+            // Camera rotation
+            player.rotation.y -= m.look;
+        }
+
         const isMoving = moveF || moveB || moveL || moveR;
 
         if (moveF) velocity.add(fwd.clone().multiplyScalar(MOVE_SPEED * delta * 10));
@@ -450,14 +490,6 @@ function animate() {
 
         player.position.add(velocity.clone().multiplyScalar(delta));
 
-        // Animation state machine
-        // if (Math.abs(velocity.y) > 1) {
-        //     playAnimation('jump');
-        // } else if (isMoving) {
-        //     playAnimation('run');
-        // } else{
-        //     playAnimation('idle');
-        // }
         updateAnimation(isMoving);
 
         // FALL CHECK
