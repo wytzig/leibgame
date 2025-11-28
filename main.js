@@ -4,7 +4,7 @@ import { initFirebase, db, auth } from './firebase.js';
 import { listenToPlayers, startBroadcasting } from './multiplayer.js';
 import { getDoc, setDoc, doc } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 import { syncAndBuildWorld } from './world.js';
-let selectedModelFile = 'fantasy_villager_1.0.glb'; // default
+let selectedModelFile = 'leib.glb'; // default
 
 
 
@@ -29,11 +29,9 @@ let modelLoaded = false;
 let platformTexture = null;
 
 const MODEL_SCALES = {
-    'fantasy_villager_1.0.glb': 1.2,   // increase size
     'option2.glb': 0.45,               // shrink
     'medieval_luuk.glb': 1.3,                      // fallback
     'leib.glb': 1.3,                      // fallback
-    'default': 1                     // fallback
 };
 
 // Trip Mode Variabelen
