@@ -31,8 +31,8 @@ let platformTexture = null;
 const MODEL_SCALES = {
     'fantasy_villager_1.0.glb': 1.2,   // increase size
     'option2.glb': 0.45,               // shrink
-    'Medieval Luuk.glb': 2,                      // fallback
-    'leib.glb': 2,                      // fallback
+    'medieval_luuk.glb': 1.3,                      // fallback
+    'leib.glb': 1.3,                      // fallback
     'default': 1                     // fallback
 };
 
