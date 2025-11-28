@@ -271,6 +271,7 @@ function loadPlayerModel(model) {
 
                 // Play idle by default
                 playAnimation('idle');
+                
             } else {
                 console.warn("No animations found in this GLB file.");
             }
@@ -397,7 +398,29 @@ function endGame(reason, won = false) {
     ui.gameOver.classList.add('active');
 }
 
+function updateAnimation(isMoving) {
+    if (!isGrounded) {
+        if (currentAnimation !== 'jump') {
+            playAnimation('jump');
+            currentAnimation = 'jump';
+        }
+    } else if (isMoving) {
+        if (currentAnimation !== 'run') {
+            playAnimation('run');
+            currentAnimation = 'run';
+        }
+    } else {
+        if (currentAnimation !== 'idle') {
+            playAnimation('idle');
+            currentAnimation = 'idle';
+        }
+    }
+}
+
 // --- GAME LOOP ---
+let currentAnimation = '';
+let isGrounded = false; 
+
 function animate() {
     requestAnimationFrame(animate);
     const now = Date.now();
@@ -420,14 +443,6 @@ function animate() {
 
         const isMoving = moveF || moveB || moveL || moveR;
 
-        if (Math.abs(velocity.y) > 1) {
-            playAnimation('jump');
-        } else if (isMoving) {
-            playAnimation('run');
-        } else {
-            playAnimation('idle');
-        }
-
         if (moveF) velocity.add(fwd.clone().multiplyScalar(MOVE_SPEED * delta * 10));
         if (moveB) velocity.add(fwd.clone().multiplyScalar(-MOVE_SPEED * delta * 10));
         if (moveL) velocity.add(right.clone().multiplyScalar(-MOVE_SPEED * delta * 10));
@@ -436,13 +451,14 @@ function animate() {
         player.position.add(velocity.clone().multiplyScalar(delta));
 
         // Animation state machine
-        if (Math.abs(velocity.y) > 1) {
-            playAnimation('jump');
-        } else if (isMoving) {
-            playAnimation('run');
-        } else{
-            playAnimation('idle');
-        }
+        // if (Math.abs(velocity.y) > 1) {
+        //     playAnimation('jump');
+        // } else if (isMoving) {
+        //     playAnimation('run');
+        // } else{
+        //     playAnimation('idle');
+        // }
+        updateAnimation(isMoving);
 
         // FALL CHECK
         if (player.position.y < -30) {
@@ -457,6 +473,7 @@ function animate() {
                 if (player.position.y > p.position.y && player.position.y < p.position.y + 3 && velocity.y <= 0) {
                     player.position.y = p.position.y + p.userData.h / 2 + 1.01;
                     velocity.y = 0;
+                    isGrounded = true;
                 }
             }
         });
@@ -599,6 +616,7 @@ function setupInputs() {
         if (e.code === 'KeyD') moveR = true;
         if (e.code === 'Space') {
             velocity.y = JUMP_SPEED;
+            isGrounded = false; // you just left ground
         }
         if (e.code === 'Enter') activateWeed();
     });
@@ -645,6 +663,7 @@ function setupInputs() {
         loadPreviewModel(el, el.dataset.model);
     });
 }
+
 function loadPreviewModel(el, modelFile) {
     // Clean old
     if (el.previewRenderer) el.removeChild(el.previewRenderer.domElement);
