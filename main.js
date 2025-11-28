@@ -467,7 +467,7 @@ function animate() {
         const fwd = new THREE.Vector3(0, 0, -1).applyEuler(player.rotation);
         const right = new THREE.Vector3(1, 0, 0).applyEuler(player.rotation);
 
-        
+
         // mobile controls
         if (mobile.enabled) {
             const m = mobile.update();
@@ -694,6 +694,24 @@ function setupInputs() {
     document.querySelectorAll('.char-preview').forEach(el => {
         loadPreviewModel(el, el.dataset.model);
     });
+    // --- MOBILE BUTTONS ---
+    if (mobile) {
+        // Action buttons
+        document.getElementById('jump-btn').addEventListener('touchstart', (e) => { e.preventDefault(); mobile.onJump(); });
+        document.getElementById('shoot-btn').addEventListener('touchstart', (e) => { e.preventDefault(); mobile.onShoot(); });
+        document.getElementById('ability-btn').addEventListener('touchstart', (e) => { e.preventDefault(); mobile.onAbility(); });
+
+        // D-pad movement
+        document.querySelector('.btn-up').addEventListener('touchstart', () => mobile.forward = 1);
+        document.querySelector('.btn-down').addEventListener('touchstart', () => mobile.backward = 1);
+        document.querySelector('.btn-left').addEventListener('touchstart', () => mobile.left = 1);
+        document.querySelector('.btn-right').addEventListener('touchstart', () => mobile.right = 1);
+
+        document.querySelector('.btn-up').addEventListener('touchend', () => mobile.forward = 0);
+        document.querySelector('.btn-down').addEventListener('touchend', () => mobile.backward = 0);
+        document.querySelector('.btn-left').addEventListener('touchend', () => mobile.left = 0);
+        document.querySelector('.btn-right').addEventListener('touchend', () => mobile.right = 0);
+    }
 }
 
 function loadPreviewModel(el, modelFile) {
@@ -739,30 +757,4 @@ function animatePreview(el) {
     el.previewModel.rotation.y += 0.01;
     el.previewRenderer.render(el.previewScene, el.previewCamera);
     requestAnimationFrame(() => animatePreview(el));
-}
-
-// --- DEBUG FUNCTIES ---
-function debugAnimations() {
-    if (!mixer || !animations) return;
-
-    const debugData = {};
-    let activeName = "Geen";
-
-    // Loop door alle geladen animaties (idle, run, jump)
-    for (const [name, action] of Object.entries(animations)) {
-
-        // Bepaal welke de 'hoofd' animatie is op basis van weight
-        if (action.getEffectiveWeight() > 0.5) activeName = name;
-
-        debugData[name] = {
-            weight: action.getEffectiveWeight().toFixed(2), // Hoeveel invloed heeft deze animatie (0.0 tot 1.0)
-            time: action.time.toFixed(2),                   // Huidige tijd in de loop
-            playing: action.isRunning(),                    // Is hij bezig?
-            enabled: action.enabled                         // Staat hij aan?
-        };
-    }
-
-    console.clear(); // Optioneel: houdt de console schoon
-    console.log(`%c Huidige Hoofdanimatie: ${activeName}`, 'background: #222; color: #bada55; font-size: 14px');
-    console.table(debugData);
 }
