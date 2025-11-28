@@ -477,9 +477,17 @@ function animate() {
             if (m.left) velocity.add(right.clone().multiplyScalar(-MOVE_SPEED * delta * 10 * m.left));
             if (m.right) velocity.add(right.clone().multiplyScalar(MOVE_SPEED * delta * 10 * m.right));
 
-            // Camera rotation
+            // Horizontal rotation
             player.rotation.y -= m.look;
+
+            // **Vertical rotation**
+            camera.rotation.x = THREE.MathUtils.clamp(
+                camera.rotation.x - m.lookUpDown,
+                -Math.PI / 4,
+                Math.PI / 4
+            );
         }
+
 
         const isMoving = moveF || moveB || moveL || moveR;
 

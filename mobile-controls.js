@@ -1,11 +1,11 @@
 // mobile-controls.js
 // Virtual joystick + camera drag + buttons for mobile devices
-
 export class MobileControls {
     constructor() {
         this.enabled = this.isMobile();
         this.move = { x: 0, y: 0 };
         this.lookDelta = 0;
+        this.lookUpDown = 0;
 
         if (!this.enabled) return;
 
@@ -56,10 +56,10 @@ export class MobileControls {
         });
         document.body.appendChild(this.dragArea);
 
-        // ----- BUTTONS STACKED VERTICALLY -----
-        this.btnJump = this._makeButton("SPRING", 140, 20);
-        this.btnShoot = this._makeButton("SPUUG", 80, 20);
-        this.btnAbility = this._makeButton("BUFF", 20, 20);
+        // ----- BUTTONS -----
+        this.btnJump = this._makeButton("Jump", 90, 20);
+        this.btnShoot = this._makeButton("Shoot", 90, 140);
+        this.btnAbility = this._makeButton("Boost", 200, 20);
     }
 
     _makeButton(text, bottom, right) {
@@ -69,14 +69,13 @@ export class MobileControls {
             position: "fixed",
             right: right + "px",
             bottom: bottom + "px",
-            width: "100px",
-            padding: "20px 0",
+            width: "80px",
+            padding: "15px 0",
             background: "rgba(255,255,255,0.25)",
             color: "#fff",
             textAlign: "center",
-            borderRadius: "16px",
-            fontSize: "20px",
-            fontWeight: "bold",
+            borderRadius: "12px",
+            fontSize: "18px",
             userSelect: "none",
             touchAction: "none",
             zIndex: 9999
@@ -106,20 +105,30 @@ export class MobileControls {
             this.stickInner.style.top = "45px";
         });
 
-        // ----- LOOK DRAG -----
-        let lastX = null;
+        // ----- LOOK DRAG (camera) -----
+        let lastX = null, lastY = null;
+
         this.dragArea.addEventListener("touchmove", (e) => {
             const x = e.touches[0].clientX;
-            if (lastX != null) {
+            const y = e.touches[0].clientY;
+
+            if (lastX != null && lastY != null) {
                 const dx = x - lastX;
-                this.lookDelta = dx * 0.0025;
+                const dy = y - lastY;
+
+                this.lookDelta = dx * 0.0025;       // horizontal rotation
+                this.lookUpDown = dy * 0.0025;     // vertical rotation
             }
+
             lastX = x;
+            lastY = y;
         });
 
         this.dragArea.addEventListener("touchend", () => {
             lastX = null;
+            lastY = null;
             this.lookDelta = 0;
+            this.lookUpDown = 0;
         });
 
         // ----- BUTTON EVENTS -----
@@ -160,7 +169,8 @@ export class MobileControls {
             backward: y > 0 ? y : 0,
             left: x < 0 ? -x : 0,
             right: x > 0 ? x : 0,
-            look: this.lookDelta
+            look: this.lookDelta,
+            lookUpDown: this.lookUpDown
         };
     }
 }
