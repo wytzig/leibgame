@@ -10,9 +10,9 @@ vraag authors om de variabelen.
 # Amazing features 
 Such as..
 
-## platformer with moon! - Can you visit the king?
 platformer with moon! - Can you visit the king?
-## 3D renderings of leib!
+platformer with moon! - Can you visit the king?
+3D renderings of leib!
 3D renderings of leib!
 including spring easter egg character.
 Equalized the diversity quota by adding a second character to leib weissman's universe! 
@@ -21,4 +21,3 @@ Equalized the diversity quota by adding a second character to leib weissman's un
  # authors
  - M. Kaiser
  - L. Weissman
- - Frank B.
