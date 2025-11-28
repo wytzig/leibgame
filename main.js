@@ -4,9 +4,8 @@ import { initFirebase, db, auth } from './firebase.js';
 import { listenToPlayers, startBroadcasting } from './multiplayer.js';
 import { getDoc, setDoc, doc } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 import { syncAndBuildWorld } from './world.js';
+
 let selectedModelFile = 'leib.glb'; // default
-
-
 
 // Instellingen
 const BASE_GRAVITY = 30.0;
@@ -30,7 +29,7 @@ let platformTexture = null;
 
 const MODEL_SCALES = {
     'option2.glb': 0.45,
-    'medieval_luuk.glb': 1.3, 
+    'medieval_luuk.glb': 1.3,
     'leib.glb': 1.3,
 };
 
@@ -108,14 +107,13 @@ function initThreeJS() {
     document.body.appendChild(renderer.domElement);
 
     // Licht
-    const ambient = new THREE.AmbientLight(0xffffff, 1.2);
+    const ambient = new THREE.AmbientLight(0xffffff, 0.25);
     scene.add(ambient);
-    const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
     dirLight.position.set(50, 100, 50);
     dirLight.castShadow = true;
     scene.add(dirLight);
-
-    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 1.2);
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.3);
     hemiLight.position.set(0, 20, 0);
     scene.add(hemiLight);
 
@@ -193,25 +191,25 @@ function addPlayerLights() {
     const keyLight = new THREE.DirectionalLight(0xffffff, 1.0);
     keyLight.position.set(5, 10, 5);
     keyLight.castShadow = true;
-    keyLight.intensity = 4.0;
+    keyLight.intensity = 1.2;
     player.add(keyLight);
 
     // Fill light (van de andere kant, zachter)
     const fillLight = new THREE.DirectionalLight(0xffffff, 0.5);
     fillLight.position.set(-5, 5, 5);
-    fillLight.intensity = 2.4;
+    fillLight.intensity = 0.4;
     player.add(fillLight);
 
     // Back light / rim light (achter speler, voor contouren)
     const backLight = new THREE.DirectionalLight(0xffffff, 0.3);
     backLight.position.set(0, 5, -5);
-    backLight.intensity = 1.6;
+    backLight.intensity = 0.4;
     player.add(backLight);
 
     // Optioneel: klein puntlicht vlakbij het model voor highlights
     const pointLight = new THREE.PointLight(0xffffff, 0.5, 10);
     pointLight.position.set(0, 3, 0);
-    pointLight.intensity = 3;
+    pointLight.intensity = 1;
     player.add(pointLight);
 }
 
@@ -221,9 +219,9 @@ function loadPlayerModel(model) {
     // --- CONFIGURATIE ANIMATIES PER MODEL ---
     // Hier koppel je de bestandsnaam aan de juiste animatie-indexen
     const ANIMATION_MAPPING = {
-        'option2.glb':       { idle: 10, run: 0, jump: 9 },
-        'medieval_luuk.glb': { idle: 5,  run: 2, jump: 0 },
-        'leib.glb':          { idle: 7,  run: 2, jump: 3 }
+        'option2.glb': { idle: 10, run: 0, jump: 9 },
+        'medieval_luuk.glb': { idle: 5, run: 2, jump: 0 },
+        'leib.glb': { idle: 7, run: 2, jump: 6 }
     };
     // -----------------------------------------
 
@@ -260,8 +258,8 @@ function loadPlayerModel(model) {
                 // 2. Pas de indexen toe
                 // We gebruiken (|| gltf.animations[0]) als veiligheid voor als een nummer niet bestaat
                 animations = {
-                    idle: mixer.clipAction(gltf.animations[mapping.idle] || gltf.animations[0]), 
-                    run:  mixer.clipAction(gltf.animations[mapping.run]  || gltf.animations[0]), 
+                    idle: mixer.clipAction(gltf.animations[mapping.idle] || gltf.animations[0]),
+                    run: mixer.clipAction(gltf.animations[mapping.run] || gltf.animations[0]),
                     jump: mixer.clipAction(gltf.animations[mapping.jump] || gltf.animations[0])
                 };
 
@@ -277,8 +275,6 @@ function loadPlayerModel(model) {
                 console.warn("No animations found in this GLB file.");
             }
 
-            // Add lights to the player model
-            addPlayerLights();
 
             modelLoaded = true;
             updateStatus("model", "✅ Model geladen!", "green");
@@ -354,7 +350,7 @@ function updateStatus(type, message, color) {
 
 function playAnimation(name) {
     if (!mixer || !animations[name]) return;
-    
+
     // Als we deze animatie al afspelen, doe niets (behalve als het jump is, die mag soms resetten)
     if (currentAction === animations[name] && name !== 'jump') return;
 
@@ -402,18 +398,10 @@ function endGame(reason, won = false) {
 }
 
 // --- GAME LOOP ---
-let lastDebugTime = 0; 
-
 function animate() {
     requestAnimationFrame(animate);
     const now = Date.now();
     const delta = 0.016;
-
-    // --- DEBUG LOGGING (Elke 500ms) ---
-    if (now - lastDebugTime > 500) { 
-        // debugAnimations();
-        lastDebugTime = now;
-    }
     
     // Update animations
     if (mixer) mixer.update(delta);
@@ -670,9 +658,11 @@ function loadPreviewModel(el, modelFile) {
     renderer.setSize(el.clientWidth, el.clientHeight);
     el.appendChild(renderer.domElement);
 
-    const light = new THREE.DirectionalLight(0xffffff, 1);
+    const light = new THREE.DirectionalLight(0xffffff, 2.2);
     light.position.set(5, 10, 5);
     scene.add(light);
+    const fill = new THREE.AmbientLight(0xffffff, 1.2);
+    scene.add(fill);
 
     const loader = new GLTFLoader();
     loader.load(modelFile, (gltf) => {
@@ -709,7 +699,7 @@ function debugAnimations() {
 
     // Loop door alle geladen animaties (idle, run, jump)
     for (const [name, action] of Object.entries(animations)) {
-        
+
         // Bepaal welke de 'hoofd' animatie is op basis van weight
         if (action.getEffectiveWeight() > 0.5) activeName = name;
 
