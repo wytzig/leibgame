@@ -4,6 +4,9 @@
 
 vraag authors om de variabelen.
 
+# Images
+### ![alt text](image.png)
+
  # authors
  - M. Kaiser
  - L. Weissman
