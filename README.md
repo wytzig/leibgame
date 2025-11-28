@@ -19,5 +19,5 @@ Equalized the diversity quota by adding a second character to leib weissman's un
 
 
  # authors
- - M. Kaiser
+ - G. M. Kaislscherer
  - L. Weissman
