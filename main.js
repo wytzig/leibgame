@@ -694,24 +694,6 @@ function setupInputs() {
     document.querySelectorAll('.char-preview').forEach(el => {
         loadPreviewModel(el, el.dataset.model);
     });
-    // --- MOBILE BUTTONS ---
-    if (mobile) {
-        // Action buttons
-        document.getElementById('jump-btn').addEventListener('touchstart', (e) => { e.preventDefault(); mobile.onJump(); });
-        document.getElementById('shoot-btn').addEventListener('touchstart', (e) => { e.preventDefault(); mobile.onShoot(); });
-        document.getElementById('ability-btn').addEventListener('touchstart', (e) => { e.preventDefault(); mobile.onAbility(); });
-
-        // D-pad movement
-        document.querySelector('.btn-up').addEventListener('touchstart', () => mobile.forward = 1);
-        document.querySelector('.btn-down').addEventListener('touchstart', () => mobile.backward = 1);
-        document.querySelector('.btn-left').addEventListener('touchstart', () => mobile.left = 1);
-        document.querySelector('.btn-right').addEventListener('touchstart', () => mobile.right = 1);
-
-        document.querySelector('.btn-up').addEventListener('touchend', () => mobile.forward = 0);
-        document.querySelector('.btn-down').addEventListener('touchend', () => mobile.backward = 0);
-        document.querySelector('.btn-left').addEventListener('touchend', () => mobile.left = 0);
-        document.querySelector('.btn-right').addEventListener('touchend', () => mobile.right = 0);
-    }
 }
 
 function loadPreviewModel(el, modelFile) {

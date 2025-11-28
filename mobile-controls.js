@@ -56,10 +56,10 @@ export class MobileControls {
         });
         document.body.appendChild(this.dragArea);
 
-        // ----- BUTTONS -----
-        this.btnJump = this._makeButton("Jump", 90, 20);
-        this.btnShoot = this._makeButton("Shoot", 90, 140);
-        this.btnAbility = this._makeButton("Boost", 200, 20);
+        // ----- BUTTONS STACKED VERTICALLY -----
+        this.btnJump = this._makeButton("SPRING", 140, 20);
+        this.btnShoot = this._makeButton("SPUUG", 80, 20);
+        this.btnAbility = this._makeButton("BUFF", 20, 20);
     }
 
     _makeButton(text, bottom, right) {
@@ -69,13 +69,14 @@ export class MobileControls {
             position: "fixed",
             right: right + "px",
             bottom: bottom + "px",
-            width: "80px",
-            padding: "15px 0",
+            width: "100px",
+            padding: "20px 0",
             background: "rgba(255,255,255,0.25)",
             color: "#fff",
             textAlign: "center",
-            borderRadius: "12px",
-            fontSize: "18px",
+            borderRadius: "16px",
+            fontSize: "20px",
+            fontWeight: "bold",
             userSelect: "none",
             touchAction: "none",
             zIndex: 9999
