@@ -5,7 +5,9 @@
 
  ## multiplayer creds
  - maak een config.js
- - doe iets als ``` window.env = {
+ - doe iets als 
+ ``` 
+ window.env = {
   VITE_API_KEY: "",
   VITE_AUTH_DOMAIN: "",
   VITE_PROJECT_ID: "",
@@ -17,6 +19,6 @@
 vraag authors om de variabelen.
 
  # authors
- M. Kaiser
- L. Weissman
- Frank B.
+ - M. Kaiser
+ - L. Weissman
+ - Frank B.
