@@ -231,7 +231,16 @@ function logChildren(obj, depth = 0) {
 function loadPlayerModel(model) {
     const loader = new GLTFLoader();
 
-    console.log("Starting to load model...");
+    // --- CONFIGURATIE ANIMATIES PER MODEL ---
+    // Hier koppel je de bestandsnaam aan de juiste animatie-indexen
+    const ANIMATION_MAPPING = {
+        'option2.glb':       { idle: 10, run: 0, jump: 9 },
+        'mediaval_luuk.glb': { idle: 0,  run: 3, jump: 1 },
+        'leib.glb':          { idle: 2,  run: 4, jump: 3 }
+    };
+    // -----------------------------------------
+
+    console.log("Starting to load model...", model);
     updateStatus("model", "🎮 Model laden... 0%", "purple");
 
     loader.load(model,
@@ -253,17 +262,23 @@ function loadPlayerModel(model) {
 
             // --- ANIMATION SETUP START ---
             if (gltf.animations && gltf.animations.length > 0) {
-                console.log("Animations found in GLB:", gltf.animations.map(a => a.name));
+                console.log("Animations found in GLB:", gltf.animations.map((a, i) => `${i}: ${a.name}`));
 
                 // Create a mixer for this model
                 mixer = new THREE.AnimationMixer(playerModel);
 
-                // Map key animations globally for option2.glb
+                // 1. Haal de juiste mapping op. Als het model niet in de lijst staat, pakken we 'option2.glb' als standaard.
+                const mapping = ANIMATION_MAPPING[model] || ANIMATION_MAPPING['option2.glb'];
+                console.log(`Gebruikte animatie-indexen voor ${model}:`, mapping);
+
+                // 2. Pas de indexen toe
+                // We gebruiken (|| gltf.animations[0]) als veiligheid voor als een nummer niet bestaat
                 animations = {
-                    idle: mixer.clipAction(gltf.animations[10]),   // WH_NormalIddle -> choose 14 for normal idle max
-                    run: mixer.clipAction(gltf.animations[0]),     // WH_NormalRun
-                    jump: mixer.clipAction(gltf.animations[9])     // WH_CombatJumpUP
+                    idle: mixer.clipAction(gltf.animations[mapping.idle] || gltf.animations[0]), 
+                    run:  mixer.clipAction(gltf.animations[mapping.run]  || gltf.animations[0]), 
+                    jump: mixer.clipAction(gltf.animations[mapping.jump] || gltf.animations[0])
                 };
+
                 // Set looping for animations
                 for (const action of Object.values(animations)) {
                     action.setLoop(THREE.LoopRepeat);
@@ -352,14 +367,21 @@ function updateStatus(type, message, color) {
 }
 
 function playAnimation(name) {
-    if (!mixer || !animations[name] || currentAction === animations[name]) return;
+    if (!mixer || !animations[name]) return;
+    
+    // Als we deze animatie al afspelen, doe niets (behalve als het jump is, die mag soms resetten)
+    if (currentAction === animations[name] && name !== 'jump') return;
+
+    console.log(`%c 🎬 Schakelen naar animatie: ${name}`, 'color: yellow; font-weight: bold;');
 
     const nextAction = animations[name];
 
     if (currentAction) {
+        // Fade out de vorige
         currentAction.fadeOut(0.2);
     }
 
+    // Reset, fade in en speel de nieuwe
     nextAction.reset().fadeIn(0.2).play();
     currentAction = nextAction;
 }
@@ -394,10 +416,19 @@ function endGame(reason, won = false) {
 }
 
 // --- GAME LOOP ---
+let lastDebugTime = 0; 
+
 function animate() {
     requestAnimationFrame(animate);
+    const now = Date.now();
     const delta = 0.016;
 
+    // --- DEBUG LOGGING (Elke 500ms) ---
+    if (now - lastDebugTime > 500) { 
+        debugAnimations();
+        lastDebugTime = now;
+    }
+    
     // Update animations
     if (mixer) mixer.update(delta);
 
@@ -682,4 +713,30 @@ function animatePreview(el) {
     el.previewModel.rotation.y += 0.01;
     el.previewRenderer.render(el.previewScene, el.previewCamera);
     requestAnimationFrame(() => animatePreview(el));
+}
+
+// --- DEBUG FUNCTIES ---
+function debugAnimations() {
+    if (!mixer || !animations) return;
+
+    const debugData = {};
+    let activeName = "Geen";
+
+    // Loop door alle geladen animaties (idle, run, jump)
+    for (const [name, action] of Object.entries(animations)) {
+        
+        // Bepaal welke de 'hoofd' animatie is op basis van weight
+        if (action.getEffectiveWeight() > 0.5) activeName = name;
+
+        debugData[name] = {
+            weight: action.getEffectiveWeight().toFixed(2), // Hoeveel invloed heeft deze animatie (0.0 tot 1.0)
+            time: action.time.toFixed(2),                   // Huidige tijd in de loop
+            playing: action.isRunning(),                    // Is hij bezig?
+            enabled: action.enabled                         // Staat hij aan?
+        };
+    }
+
+    console.clear(); // Optioneel: houdt de console schoon
+    console.log(`%c Huidige Hoofdanimatie: ${activeName}`, 'background: #222; color: #bada55; font-size: 14px');
+    console.table(debugData);
 }
