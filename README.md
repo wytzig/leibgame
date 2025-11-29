@@ -11,10 +11,11 @@ vraag authors om de variabelen.
 Such as..
 
 platformer with moon! - Can you visit the king?
-platformer with moon! - Can you visit the king?
+
 3D renderings of leib!
-3D renderings of leib!
+
 including spring easter egg character.
+
 Equalized the diversity quota by adding a second character to leib weissman's universe! 
 
 
