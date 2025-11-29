@@ -6,7 +6,7 @@ import { getDoc, setDoc, doc } from "https://www.gstatic.com/firebasejs/11.0.2/f
 import { syncAndBuildWorld } from './world.js';
 import { MobileControls } from './mobile-controls.js';
 
-let selectedModelFile = '/assets/leib.glb'; // default
+let selectedModelFile = '/leib.glb'; // default
 
 // Instellingen
 const BASE_GRAVITY = 30.0;
@@ -612,23 +612,24 @@ function setupInputs() {
         ui.nameDisplay.innerText = myName;
 
         if (isMultiplayer) {
+            const myAppearance = {
+                model: selectedModelFile,  // e.g., 'option2.glb'
+                scale: MODEL_SCALES[selectedModelFile] || MODEL_SCALES['default']
+            };
+
             await setDoc(doc(db, "players", userId), {
                 name: myName,
                 x: player.position.x,
                 y: player.position.y,
                 z: player.position.z,
                 rot: player.rotation.y,
-                lastUpdate: Date.now()
-            }).catch(e => {
+                lastUpdate: Date.now(),
+                player_appearance: myAppearance
+            }, { merge: true }).catch(e => {
                 console.error("Fout bij initiële positie zenden:", e);
             });
 
-            const myAppearance = {
-                model: selectedModel,  // e.g., 'option2.glb'
-                scale: MODEL_SCALES[selectedModel] || MODEL_SCALES['default']
-            };
-            console.log("model send to server: ", myAppearance)
-
+            console.log("model set to send to server: ", myAppearance)
             startBroadcasting(player, userId, myName, gameState, db, auth, myAppearance);
         }
 

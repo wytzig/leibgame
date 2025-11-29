@@ -1,23 +1,24 @@
 import * as THREE from 'three';
+import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/loaders/GLTFLoader.js';
 import { setDoc, doc, deleteDoc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 
 let otherPlayers = {};
 
-
 function listenToPlayers(scene, userId, ui, db) {
     const playersRef = collection(db, "players");
-
     ui.peers.innerText = "1";
+
+    const loader = new GLTFLoader();
 
     onSnapshot(playersRef, (snap) => {
         const now = Date.now();
         snap.forEach(docSnap => {
             const id = docSnap.id;
             if (id === userId) return;
+
             const data = docSnap.data();
 
             if (!otherPlayers[id]) {
-                const loader = new GLTFLoader();
                 const appearance = data.appearance || { model: null, scale: 1 };
 
                 if (appearance.model) {
@@ -25,19 +26,18 @@ function listenToPlayers(scene, userId, ui, db) {
                         (gltf) => {
                             const mesh = gltf.scene;
                             mesh.scale.set(appearance.scale, appearance.scale, appearance.scale);
-                            mesh.rotation.y = data.rot;
                             mesh.position.set(data.x, data.y, data.z);
+                            mesh.rotation.y = data.rot || 0;
 
                             scene.add(mesh);
                             const label = createNameLabel(data.name || "Onbekend");
                             scene.add(label);
 
-                            otherPlayers[id] = { mesh, label, lastSeen: Date.now() };
+                            otherPlayers[id] = { mesh, label, lastSeen: now };
                         },
                         undefined,
                         (err) => {
-                            console.error("Failed to load other player model:", err);
-                            // fallback: simple box
+                            console.warn("Failed to load player model, using box fallback", err);
                             const mesh = new THREE.Mesh(
                                 new THREE.BoxGeometry(1, 2, 1),
                                 new THREE.MeshStandardMaterial({ color: 0xff0000 })
@@ -47,11 +47,11 @@ function listenToPlayers(scene, userId, ui, db) {
                             const label = createNameLabel(data.name || "Onbekend");
                             scene.add(label);
 
-                            otherPlayers[id] = { mesh, label, lastSeen: Date.now() };
+                            otherPlayers[id] = { mesh, label, lastSeen: now };
                         }
                     );
                 } else {
-                    // fallback cube
+                    // fallback box
                     const mesh = new THREE.Mesh(
                         new THREE.BoxGeometry(1, 2, 1),
                         new THREE.MeshStandardMaterial({ color: 0xff0000 })
@@ -61,29 +61,35 @@ function listenToPlayers(scene, userId, ui, db) {
                     const label = createNameLabel(data.name || "Onbekend");
                     scene.add(label);
 
-                    otherPlayers[id] = { mesh, label, lastSeen: Date.now() };
+                    otherPlayers[id] = { mesh, label, lastSeen: now };
                 }
+            } else {
+                // Update position smoothly
+                const player = otherPlayers[id];
+                if (player.mesh) {
+                    player.mesh.position.lerp(new THREE.Vector3(data.x, data.y, data.z), 0.3);
+                    player.mesh.rotation.y = data.rot || 0;
+                }
+                if (player.label) {
+                    player.label.position.copy(player.mesh.position).add(new THREE.Vector3(0, 2.5, 0));
+                }
+                player.lastSeen = now;
             }
-
-            otherPlayers[id].lastSeen = now;
-            otherPlayers[id].mesh.position.lerp(new THREE.Vector3(data.x, data.y, data.z), 0.3);
-            otherPlayers[id].mesh.rotation.y = data.rot;
-            otherPlayers[id].label.position.copy(otherPlayers[id].mesh.position).add(new THREE.Vector3(0, 2.5, 0));
         });
 
         ui.peers.innerText = Object.keys(otherPlayers).length + 1;
-    }, (error) => {
-        console.error("Snapshot error:", error);
-        ui.status.innerHTML = "❌ <strong>Database Toegang Geweigerd!</strong><br><small>Je regels staan waarschijnlijk te streng.</small>";
-        ui.status.className = "bg-red-600 text-white p-3 rounded mb-4 font-bold border-4 border-red-800";
+    }, (err) => {
+        console.error("Player snapshot error:", err);
+        ui.status.innerHTML = "❌ Database Toegang Geweigerd!";
     });
 
+    // Remove inactive players
     setInterval(() => {
         const now = Date.now();
         for (const [id, player] of Object.entries(otherPlayers)) {
             if (now - player.lastSeen > 10000) {
-                scene.remove(player.mesh);
-                scene.remove(player.label);
+                if (player.mesh) scene.remove(player.mesh);
+                if (player.label) scene.remove(player.label);
                 delete otherPlayers[id];
                 ui.peers.innerText = Object.keys(otherPlayers).length + 1;
             }
@@ -91,7 +97,7 @@ function listenToPlayers(scene, userId, ui, db) {
     }, 2000);
 }
 
-function startBroadcasting(player, userId, myName, gameState, db, auth, myAppearance) {
+function startBroadcasting(player, userId, myName, gameState, db, auth, appearance) {
     let lastSent = 0;
     let lastPos = new THREE.Vector3();
 
@@ -108,10 +114,9 @@ function startBroadcasting(player, userId, myName, gameState, db, auth, myAppear
                     z: player.position.z,
                     rot: player.rotation.y,
                     lastUpdate: now,
-                    appearance: appearance
-                }).catch(e => {
-                    console.error("Kan positie niet sturen:", e);
-                });
+                    player_appearance: appearance
+                }).catch(console.error);
+
                 lastSent = now;
                 lastPos.copy(player.position);
             }
