@@ -9,12 +9,31 @@ export class MobileControls {
 
         if (!this.enabled) return;
 
-        this._buildUI();
-        this._attachEvents();
+        this.uiBuilt = false;
+
+        this.onJump = () => {};
+        this.onShoot = () => {};
+        this.onAbility = () => {};
     }
 
     isMobile() {
         return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+    }
+
+    // Call after pressing Start
+    start() {
+        if (!this.enabled || this.uiBuilt) return;
+
+        this._buildUI();
+        this._attachEvents();
+        this.uiBuilt = true;
+
+        // Fade in UI smoothly
+        [this.stickOuter, this.stickInner, this.btnJump, this.btnShoot, this.btnAbility].forEach(el => {
+            el.style.opacity = 0;
+            el.style.transition = 'opacity 0.3s';
+            requestAnimationFrame(() => el.style.opacity = 1);
+        });
     }
 
     _buildUI() {
@@ -88,12 +107,12 @@ export class MobileControls {
         // ----- JOYSTICK -----
         let stickActive = false;
 
-        this.stickOuter.addEventListener("touchstart", (e) => {
+        this.stickOuter.addEventListener("touchstart", e => {
             stickActive = true;
             this._updateStick(e);
         });
 
-        this.stickOuter.addEventListener("touchmove", (e) => {
+        this.stickOuter.addEventListener("touchmove", e => {
             if (stickActive) this._updateStick(e);
         });
 
@@ -105,10 +124,10 @@ export class MobileControls {
             this.stickInner.style.top = "45px";
         });
 
-        // ----- LOOK DRAG (camera) -----
+        // ----- LOOK DRAG -----
         let lastX = null, lastY = null;
 
-        this.dragArea.addEventListener("touchmove", (e) => {
+        this.dragArea.addEventListener("touchmove", e => {
             const x = e.touches[0].clientX;
             const y = e.touches[0].clientY;
 
@@ -116,8 +135,8 @@ export class MobileControls {
                 const dx = x - lastX;
                 const dy = y - lastY;
 
-                this.lookDelta = dx * 0.0025;       // horizontal rotation
-                this.lookUpDown = dy * 0.0025;     // vertical rotation
+                this.lookDelta = dx * 0.0025;
+                this.lookUpDown = dy * 0.0025;
             }
 
             lastX = x;
@@ -132,10 +151,6 @@ export class MobileControls {
         });
 
         // ----- BUTTON EVENTS -----
-        this.onJump = () => {};
-        this.onShoot = () => {};
-        this.onAbility = () => {};
-
         this.btnJump.addEventListener("touchstart", () => this.onJump());
         this.btnShoot.addEventListener("touchstart", () => this.onShoot());
         this.btnAbility.addEventListener("touchstart", () => this.onAbility());
@@ -157,8 +172,8 @@ export class MobileControls {
         this.stickInner.style.left = clampedX + 45 + "px";
         this.stickInner.style.top = clampedY + 45 + "px";
 
-        this.move.x = clampedX / max; // left/right
-        this.move.y = clampedY / max; // forward/back
+        this.move.x = clampedX / max;
+        this.move.y = clampedY / max;
     }
 
     update() {

@@ -642,6 +642,9 @@ function setupInputs() {
         ui.start.classList.remove('active');
         document.body.requestPointerLock();
         gameState = 'playing';
+
+        // ✅ Add this line to enable mobile controls now
+        if (mobile.enabled) mobile.start();
     });
 
     ui.resumeBtn.addEventListener('click', () => {
@@ -741,7 +744,7 @@ function loadPreviewModel(el, modelFile) {
 
         const scale = MODEL_SCALES[modelFile] || MODEL_SCALES['default'];
         container.scale.set(scale, scale, scale);
-       
+
         container.rotation.y = Math.PI;
         scene.add(container);
 
