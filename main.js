@@ -21,7 +21,8 @@ let userId, myName = "Speler", isMultiplayer = false;
 let camera, scene, renderer, player, playerModel, mixer, animations = {};
 let velocity = new THREE.Vector3();
 let platforms = [], coins = [], enemies = [], otherPlayers = {}, projectiles = [];
-let gameState = 'start', coinsCollected = 0;
+window.gameState = 'start';
+let coinsCollected = 0;
 let moveF = false, moveB = false, moveL = false, moveR = false;
 let textureLoader;
 let currentAction = null;
@@ -192,7 +193,7 @@ function initThreeJS() {
     // Speler Container (voor collisie detectie)
     player = new THREE.Object3D();
     player.position.set(0, 5, 0);
-
+    window.player = player;  // add player to window to be used in multiplayer.js
     scene.add(player);
 
     // Laad het GLB model
@@ -404,7 +405,7 @@ function playAnimation(name) {
 
 // --- GAMEPLAY FUNCTIES ---
 function activateWeed() {
-    if (gameState !== 'playing' || coinsCollected < 1 || isTripping) return;
+    if (window.gameState !== 'playing' || coinsCollected < 1 || isTripping) return;
     coinsCollected--;
     ui.coins.innerText = coinsCollected;
 
@@ -421,7 +422,7 @@ function activateWeed() {
 }
 
 function endGame(reason, won = false) {
-    gameState = 'ended';
+    window.gameState = 'ended';
     document.exitPointerLock();
     ui.goReason.innerText = reason;
 
@@ -461,7 +462,7 @@ function animate() {
     // Update animations
     if (mixer) mixer.update(delta);
 
-    if (gameState === 'playing') {
+    if (window.gameState === 'playing') {
 
         // desktop controls 
         currentGravity = THREE.MathUtils.lerp(currentGravity, targetGravity, delta * 2);
@@ -530,7 +531,7 @@ function animate() {
         if (player.position.z <= CASTLE_Z + 5 &&
             Math.abs(player.position.x) < 10 &&
             player.position.y <= 12) {
-            if (gameState !== 'ended') {
+            if (window.gameState !== 'ended') {
                 endGame("Je hebt het kasteel bereikt! Je wint!", true);
             }
         }
@@ -620,7 +621,12 @@ function setupInputs() {
         ui.nameDisplay.innerText = myName;
 
         if (isMultiplayer) {
-            const appearance = player.userData.appearance
+            const appearance = player.userData.appearance;
+
+            console.log("🔥 ABOUT TO START BROADCASTING - userId:", userId);
+            console.log("🔥 player object:", player);
+            console.log("🔥 db object:", db);
+            console.log("🔥 auth object:", auth);
 
             await setDoc(doc(db, "players", userId), {
                 name: myName,
@@ -633,15 +639,16 @@ function setupInputs() {
             }, { merge: true }).catch(e => {
                 console.error("Fout bij initiële positie zenden:", e);
             });
-
-            startBroadcasting(player, userId, myName, gameState, db, auth);
+            console.log("trying to broadcast")
+            startBroadcasting(userId, myName, db, auth);
+            console.log("done with broadcast")
         }
 
         await syncAndBuildWorld(scene, ui, platforms, coins, enemies, projectiles, isMultiplayer, db, CASTLE_Z, platformTexture, textureLoader);
 
         ui.start.classList.remove('active');
         document.body.requestPointerLock();
-        gameState = 'playing';
+        window.gameState = 'playing';
 
         // ✅ Add this line to enable mobile controls now
         if (mobile.enabled) mobile.start();
@@ -653,11 +660,11 @@ function setupInputs() {
 
     document.addEventListener('pointerlockchange', () => {
         if (document.pointerLockElement === document.body) {
-            gameState = 'playing';
+            window.gameState = 'playing';
             ui.pauseScreen.classList.remove('active');
         } else {
-            if (gameState === 'playing' && gameState !== 'ended') {
-                gameState = 'paused';
+            if (window.gameState === 'playing' && window.gameState !== 'ended') {
+                window.gameState = 'paused';
                 ui.pauseScreen.classList.add('active');
             }
         }
@@ -681,10 +688,10 @@ function setupInputs() {
         if (e.code === 'KeyD') moveR = false;
     });
     document.addEventListener('mousemove', e => {
-        if (gameState === 'playing') player.rotation.y -= e.movementX * 0.002;
+        if (window.gameState === 'playing') player.rotation.y -= e.movementX * 0.002;
     });
     document.addEventListener('mousedown', () => {
-        if (gameState === 'playing') {
+        if (window.gameState === 'playing') {
             const ball = new THREE.Mesh(new THREE.SphereGeometry(0.2), new THREE.MeshBasicMaterial({ color: 0x00ffff }));
             ball.position.copy(player.position).add(new THREE.Vector3(0, 1.5, 0));
             scene.add(ball);
