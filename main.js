@@ -6,7 +6,7 @@ import { getDoc, setDoc, doc } from "https://www.gstatic.com/firebasejs/11.0.2/f
 import { syncAndBuildWorld } from './world.js';
 import { MobileControls } from './mobile-controls.js';
 
-let selectedModelFile = '/leib.glb'; // default
+let selectedModelFile = '/assets/leib.glb'; // default
 
 // Instellingen
 const BASE_GRAVITY = 30.0;
@@ -30,9 +30,9 @@ let platformTexture = null;
 let mobile = null // mobile support
 
 const MODEL_SCALES = {
-    'option2.glb': 0.45,
-    'medieval_luuk.glb': 1.3,
-    'leib.glb': 1.3,
+    '/assets/option2.glb': 0.45,
+    '/assets/medieval_luuk.glb': 1.3,
+    '/assets/leib.glb': 1.3,
 };
 
 // Trip Mode Variabelen
@@ -244,9 +244,9 @@ function loadPlayerModel(model) {
     // --- CONFIGURATIE ANIMATIES PER MODEL ---
     // Hier koppel je de bestandsnaam aan de juiste animatie-indexen
     const ANIMATION_MAPPING = {
-        'option2.glb': { idle: 10, run: 0, jump: 9 },
-        'medieval_luuk.glb': { idle: 5, run: 2, jump: 0 },
-        'leib.glb': { idle: 7, run: 2, jump: 6 }
+        '/assets/option2.glb': { idle: 10, run: 0, jump: 9 },
+        '/assets/medieval_luuk.glb': { idle: 5, run: 2, jump: 0 },
+        '/assets/leib.glb': { idle: 7, run: 2, jump: 6 }
     };
     // -----------------------------------------
 
@@ -259,8 +259,9 @@ function loadPlayerModel(model) {
             playerModel = gltf.scene;
 
             // Use per-model scale
-            const scale = MODEL_SCALES[model] || MODEL_SCALES['default'];
+            const scale = MODEL_SCALES[model] || MODEL_SCALES['leib.glb'];
             playerModel.scale.set(scale, scale, scale);
+            console.log("scale: ", scale)
 
             // Rotate the model so it faces forward
             playerModel.rotation.y = Math.PI;
@@ -268,6 +269,13 @@ function loadPlayerModel(model) {
 
             // Add model to the player container
             player.add(playerModel);
+
+            // Store appearance on player for broadcasting
+            player.userData.appearance = {
+                model: selectedModelFile,
+                scale: scale
+            };
+            console.log("player: ", player)
 
             // --- ANIMATION SETUP START ---
             if (gltf.animations && gltf.animations.length > 0) {
@@ -612,10 +620,7 @@ function setupInputs() {
         ui.nameDisplay.innerText = myName;
 
         if (isMultiplayer) {
-            const myAppearance = {
-                model: selectedModelFile,  // e.g., 'option2.glb'
-                scale: MODEL_SCALES[selectedModelFile] || MODEL_SCALES['default']
-            };
+            const appearance = player.userData.appearance
 
             await setDoc(doc(db, "players", userId), {
                 name: myName,
@@ -624,13 +629,12 @@ function setupInputs() {
                 z: player.position.z,
                 rot: player.rotation.y,
                 lastUpdate: Date.now(),
-                player_appearance: myAppearance
+                player_appearance: appearance
             }, { merge: true }).catch(e => {
                 console.error("Fout bij initiële positie zenden:", e);
             });
 
-            console.log("model set to send to server: ", myAppearance)
-            startBroadcasting(player, userId, myName, gameState, db, auth, myAppearance);
+            startBroadcasting(player, userId, myName, gameState, db, auth);
         }
 
         await syncAndBuildWorld(scene, ui, platforms, coins, enemies, projectiles, isMultiplayer, db, CASTLE_Z, platformTexture, textureLoader);
@@ -737,6 +741,7 @@ function loadPreviewModel(el, modelFile) {
 
         const scale = MODEL_SCALES[modelFile] || MODEL_SCALES['default'];
         container.scale.set(scale, scale, scale);
+       
         container.rotation.y = Math.PI;
         scene.add(container);
 

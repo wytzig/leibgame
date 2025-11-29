@@ -77,6 +77,12 @@ function listenToPlayers(scene, userId, ui, db) {
             }
         });
 
+        otherPlayers[id].lastSeen = now;
+        otherPlayers[id].mesh.position.lerp(new THREE.Vector3(data.x, data.y, data.z), 0.3);
+        otherPlayers[id].mesh.rotation.y = data.rot;
+        otherPlayers[id].label.position.copy(otherPlayers[id].mesh.position).add(new THREE.Vector3(0, 2.5, 0));
+
+
         ui.peers.innerText = Object.keys(otherPlayers).length + 1;
     }, (err) => {
         console.error("Player snapshot error:", err);
@@ -97,7 +103,7 @@ function listenToPlayers(scene, userId, ui, db) {
     }, 2000);
 }
 
-function startBroadcasting(player, userId, myName, gameState, db, auth, appearance) {
+function startBroadcasting(player, userId, myName, gameState, db, auth) {
     let lastSent = 0;
     let lastPos = new THREE.Vector3();
 
@@ -114,8 +120,8 @@ function startBroadcasting(player, userId, myName, gameState, db, auth, appearan
                     z: player.position.z,
                     rot: player.rotation.y,
                     lastUpdate: now,
-                    player_appearance: appearance
-                }).catch(console.error);
+                    player_appearance: player.userData.appearance  // use the same stored object
+                }, { merge: true }).catch(console.error);
 
                 lastSent = now;
                 lastPos.copy(player.position);
