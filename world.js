@@ -130,7 +130,7 @@ function createCoin(x, y, z, scene, coins) {
 }
 
 function createEnemy(x, y, z, scene, enemies, textureLoader) {
-    const tex = textureLoader.load('enemy.png');
+    const tex = textureLoader.load('assets/enemy.png');
     const mesh = new THREE.Mesh(
         new THREE.PlaneGeometry(3.5, 2.75),
         new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.DoubleSide })

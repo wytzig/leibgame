@@ -150,7 +150,7 @@ function initThreeJS() {
 
     // Load platform texture and update existing platforms when ready
     platformTexture = textureLoader.load(
-        "hava.png",
+        "assets/hava.png",
         // onLoad
         (tex) => {
             // correct encoding so colors/light appear right
