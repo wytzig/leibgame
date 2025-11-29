@@ -16,7 +16,7 @@ export default defineConfig({
   testDir: './tests',
 
   webServer: {
-    command: '/usr/local/bin/python3.12 /home/wytzig/projects/leibgame/launcher.py',
+    command: 'python3 launcher.py',
     url: 'http://localhost:8000', // replace with your game URL
     timeout: 120000,
     reuseExistingServer: !process.env.CI,
