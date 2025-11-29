@@ -127,7 +127,7 @@ function startBroadcasting(userId, myName, db, auth) {
 
                 // console.log(`📍 Distance: ${dist.toFixed(3)}, Time since last: ${now - lastSent}ms`); // don't log to prevent spam
 
-                if (now - lastSent > 200 && (dist > 0.05 || now - lastSent > 2000)) {
+                if (now - lastSent > 100 && (dist > 0.05 || now - lastSent > 2000)) {
                     isWriting = true;
                     
                     console.log(`🚀 SENDING UPDATE NOW!`);
