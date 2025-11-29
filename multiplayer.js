@@ -110,15 +110,9 @@ function startBroadcasting(userId, myName, db, auth) {
     let lastSent = 0;
     let lastPos = new THREE.Vector3();
     let isWriting = false;
-    
-    console.log("🎙️ Variables initialized");
-
     try {
-        console.log("🎙️ About to create setInterval...");
-        
         const broadcastInterval = setInterval(() => {
-            console.log("⏰ INTERVAL TICK!");
-            
+        
             // Access player from window every time!
             const player = window.player;
             
@@ -127,23 +121,16 @@ function startBroadcasting(userId, myName, db, auth) {
                 return;
             }
             
-            console.log("📡 gameState:", window.gameState);
-            console.log("📡 auth.currentUser:", auth.currentUser);
-            console.log("📡 isWriting:", isWriting);
-            console.log("📡 player.position:", player.position);
-            
             if (window.gameState === 'playing' && auth.currentUser && !isWriting) {
-                console.log("✅ ALL CONDITIONS MET!");
                 const now = Date.now();
                 const dist = player.position.distanceTo(lastPos);
 
-                console.log(`📍 Distance: ${dist.toFixed(3)}, Time since last: ${now - lastSent}ms`);
+                // console.log(`📍 Distance: ${dist.toFixed(3)}, Time since last: ${now - lastSent}ms`); // don't log to prevent spam
 
-                if (now - lastSent > 1000 && (dist > 0.05 || now - lastSent > 2000)) {
+                if (now - lastSent > 200 && (dist > 0.05 || now - lastSent > 2000)) {
                     isWriting = true;
                     
                     console.log(`🚀 SENDING UPDATE NOW!`);
-
                     setDoc(doc(db, "players", userId), {
                         name: myName,
                         x: player.position.x,
@@ -163,14 +150,16 @@ function startBroadcasting(userId, myName, db, auth) {
                             console.error("❌ Write failed:", err);
                         });
                 } else {
-                    console.log("⏭️ Skipping update (threshold not met)");
+                    // don't log to prevent spam
+                    // console.log("⏭️ Skipping update (threshold not met)");
                 }
             } else {
-                console.log("❌ Conditions not met:", {
-                    gameState: window.gameState,
-                    hasAuth: !!auth.currentUser,
-                    isWriting: isWriting
-                });
+                // don't log to prevent console output spam
+                // console.log("❌ Conditions not met:", {
+                //     gameState: window.gameState,
+                //     hasAuth: !!auth.currentUser,
+                //     isWriting: isWriting
+                // });
             }
         }, 100);
         
