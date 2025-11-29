@@ -18,6 +18,10 @@ including spring easter egg character.
 Equalized the diversity quota by adding a second character to leib weissman's universe! 
 
 
+# local setup
+
+Please run `launcher.py` and then navigate to localhost:8000 for testing local development 
+
  # playwright tests
 
  ```
@@ -29,11 +33,10 @@ Equalized the diversity quota by adding a second character to leib weissman's un
 then
 ```
 npx playwright test
-
+```
 or
-
+```
 npx playwright test --debug (for debugging steps)
-
 ```
 
  # authors
