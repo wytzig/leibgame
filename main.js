@@ -6,7 +6,7 @@ import { getDoc, setDoc, doc } from "https://www.gstatic.com/firebasejs/11.0.2/f
 import { syncAndBuildWorld } from './world.js';
 import { MobileControls } from './mobile-controls.js';
 
-let selectedModelFile = '/assets/leib.glb'; // default
+let selectedModelFile = 'assets/leib.glb'; // default
 
 // Instellingen
 const BASE_GRAVITY = 30.0;
@@ -30,9 +30,9 @@ let platformTexture = null;
 let mobile = null // mobile support
 
 const MODEL_SCALES = {
-    '/assets/option2.glb': 0.45,
-    '/assets/medieval_luuk.glb': 1.3,
-    '/assets/leib.glb': 1.3,
+    'assets/option2.glb': 0.45,
+    'assets/medieval_luuk.glb': 1.3,
+    'assets/leib.glb': 1.3,
 };
 
 // Trip Mode Variabelen
@@ -244,9 +244,9 @@ function loadPlayerModel(model) {
     // --- CONFIGURATIE ANIMATIES PER MODEL ---
     // Hier koppel je de bestandsnaam aan de juiste animatie-indexen
     const ANIMATION_MAPPING = {
-        '/assets/option2.glb': { idle: 10, run: 0, jump: 9 },
-        '/assets/medieval_luuk.glb': { idle: 5, run: 2, jump: 0 },
-        '/assets/leib.glb': { idle: 7, run: 2, jump: 6 }
+        'assets/option2.glb': { idle: 10, run: 0, jump: 9 },
+        'assets/medieval_luuk.glb': { idle: 5, run: 2, jump: 0 },
+        'assets/leib.glb': { idle: 7, run: 2, jump: 6 }
     };
     // -----------------------------------------
 
