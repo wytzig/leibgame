@@ -1,1 +1,9 @@
 # config.js # here would we write something IF WE NEEDED TO
+
+# Playwright
+node_modules/
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/

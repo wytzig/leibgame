@@ -1,0 +1,16 @@
+{
+  "name": "leibgame",
+  "version": "1.0.0",
+  "description": "a third person RPG platformer  can you reach the castle of king willem?",
+  "main": "main.js",
+  "scripts": {
+    "test:e2e": "npx playwright test"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@playwright/test": "^1.57.0",
+    "@types/node": "^24.10.1"
+  }
+}
