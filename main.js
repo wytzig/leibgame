@@ -623,7 +623,13 @@ function setupInputs() {
                 console.error("Fout bij initiële positie zenden:", e);
             });
 
-            startBroadcasting(player, userId, myName, gameState, db, auth);
+            const myAppearance = {
+                model: selectedModel,  // e.g., 'option2.glb'
+                scale: MODEL_SCALES[selectedModel] || MODEL_SCALES['default']
+            };
+            console.log("model send to server: ", myAppearance)
+
+            startBroadcasting(player, userId, myName, gameState, db, auth, myAppearance);
         }
 
         await syncAndBuildWorld(scene, ui, platforms, coins, enemies, projectiles, isMultiplayer, db, CASTLE_Z, platformTexture, textureLoader);

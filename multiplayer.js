@@ -17,11 +17,52 @@ function listenToPlayers(scene, userId, ui, db) {
             const data = docSnap.data();
 
             if (!otherPlayers[id]) {
-                const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 2, 1), new THREE.MeshStandardMaterial({ color: 0xff0000 }));
-                scene.add(mesh);
-                const label = createNameLabel(data.name || "Onbekend");
-                scene.add(label);
-                otherPlayers[id] = { mesh, label, lastSeen: now };
+                const loader = new GLTFLoader();
+                const appearance = data.appearance || { model: null, scale: 1 };
+
+                if (appearance.model) {
+                    loader.load(appearance.model,
+                        (gltf) => {
+                            const mesh = gltf.scene;
+                            mesh.scale.set(appearance.scale, appearance.scale, appearance.scale);
+                            mesh.rotation.y = data.rot;
+                            mesh.position.set(data.x, data.y, data.z);
+
+                            scene.add(mesh);
+                            const label = createNameLabel(data.name || "Onbekend");
+                            scene.add(label);
+
+                            otherPlayers[id] = { mesh, label, lastSeen: Date.now() };
+                        },
+                        undefined,
+                        (err) => {
+                            console.error("Failed to load other player model:", err);
+                            // fallback: simple box
+                            const mesh = new THREE.Mesh(
+                                new THREE.BoxGeometry(1, 2, 1),
+                                new THREE.MeshStandardMaterial({ color: 0xff0000 })
+                            );
+                            mesh.position.set(data.x, data.y, data.z);
+                            scene.add(mesh);
+                            const label = createNameLabel(data.name || "Onbekend");
+                            scene.add(label);
+
+                            otherPlayers[id] = { mesh, label, lastSeen: Date.now() };
+                        }
+                    );
+                } else {
+                    // fallback cube
+                    const mesh = new THREE.Mesh(
+                        new THREE.BoxGeometry(1, 2, 1),
+                        new THREE.MeshStandardMaterial({ color: 0xff0000 })
+                    );
+                    mesh.position.set(data.x, data.y, data.z);
+                    scene.add(mesh);
+                    const label = createNameLabel(data.name || "Onbekend");
+                    scene.add(label);
+
+                    otherPlayers[id] = { mesh, label, lastSeen: Date.now() };
+                }
             }
 
             otherPlayers[id].lastSeen = now;
@@ -50,7 +91,7 @@ function listenToPlayers(scene, userId, ui, db) {
     }, 2000);
 }
 
-function startBroadcasting(player, userId, myName, gameState, db, auth) {
+function startBroadcasting(player, userId, myName, gameState, db, auth, myAppearance) {
     let lastSent = 0;
     let lastPos = new THREE.Vector3();
 
@@ -66,7 +107,8 @@ function startBroadcasting(player, userId, myName, gameState, db, auth) {
                     y: player.position.y,
                     z: player.position.z,
                     rot: player.rotation.y,
-                    lastUpdate: now
+                    lastUpdate: now,
+                    appearance: appearance
                 }).catch(e => {
                     console.error("Kan positie niet sturen:", e);
                 });
