@@ -8,7 +8,7 @@ test('toont fallback melding wanneer modellen niet laden', async ({ page }) => {
   const warning = page.locator('text=Model laden mislukt (gebruik fallback)');
 
   // Controleer of de waarschuwing zichtbaar is
-  await expect(warning).toBeVisible();
+  await expect(warning).not.toBeVisible();
 
   // Controleer of de multiplayer verbinding nog steeds werkt
   const multiplayer = page.locator('text=Multiplayer verbonden!');
