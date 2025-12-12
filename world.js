@@ -3,17 +3,15 @@ import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/
 import { DRACOLoader } from 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/loaders/DRACOLoader.js';
 import { SkeletonUtils } from 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/utils/SkeletonUtils.js';
 
-// Hulpfunctie om de graphics setting op te halen (high/low)
 function getQualitySuffix() {
     try {
         const saved = localStorage.getItem('leib_settings');
         if (saved) {
             const parsed = JSON.parse(saved);
-            // Als graphics 'low' is, return '_low', anders '_high'
             return parsed.graphics === 'low' ? '_low' : '_high';
         }
     } catch (e) { console.warn(e); }
-    return '_high'; // Default fallback
+    return '_high'; 
 }
 
 const QUALITY_SUFFIX = getQualitySuffix();
@@ -21,7 +19,6 @@ console.log("🌍 World loading assets with quality:", QUALITY_SUFFIX);
 
 let worldUnsubscribe = null;
 
-// --- GLOBAL ASSET CONFIGURATION ---
 const ASSET_CONFIG = {
     COIN_SCALE: 0.5,
     COIN_ROTATION_SPEED: 2.0,
@@ -30,7 +27,6 @@ const ASSET_CONFIG = {
 };
 export { ASSET_CONFIG };
 
-// --- ASSET LOADING ---
 let cachedCoinScene = null;
 let cachedEnemyGLTF = null;
 
@@ -42,7 +38,6 @@ gltfLoader.setDRACOLoader(dracoLoader);
 
 const ASSET_BASE_URL = 'https://MaxTomahawk.github.io/leibgame-assets/assets/';
 
-// Load Coin GLB
 gltfLoader.load(`${ASSET_BASE_URL}coin${QUALITY_SUFFIX}.glb`, (gltf) => {
     cachedCoinScene = gltf.scene;
     cachedCoinScene.scale.set(ASSET_CONFIG.COIN_SCALE, ASSET_CONFIG.COIN_SCALE, ASSET_CONFIG.COIN_SCALE);
@@ -56,7 +51,6 @@ gltfLoader.load(`${ASSET_BASE_URL}coin${QUALITY_SUFFIX}.glb`, (gltf) => {
     console.warn("Could not load coin.glb, using fallback cylinder.", err);
 });
 
-// Load Enemy GLB
 gltfLoader.load(`${ASSET_BASE_URL}enemy${QUALITY_SUFFIX}.glb`, (gltf) => {
     cachedEnemyGLTF = gltf;
     cachedEnemyGLTF.scene.traverse((child) => {
@@ -69,12 +63,24 @@ gltfLoader.load(`${ASSET_BASE_URL}enemy${QUALITY_SUFFIX}.glb`, (gltf) => {
     console.warn("Could not load enemy.glb, using fallback placeholder.", err);
 });
 
+// Main function to sync and build any type of world
+export async function syncAndBuildWorld(
+    scene, 
+    ui, 
+    platforms, 
+    coins, 
+    enemies, 
+    projectiles, 
+    isMultiplayer, 
+    db, 
+    CASTLE_Z, 
+    platformTexture, 
+    textureLoader, 
+    worldGenerator, 
+    levelId = "main_world" 
+) {
+    if(ui && ui.status) ui.status.innerText = "Loading world...";
 
-// --- WORLD SYNC LOGIC ---
-export async function syncAndBuildWorld(scene, ui, platforms, coins, enemies, projectiles, isMultiplayer, db, CASTLE_Z, platformTexture, textureLoader) {
-    ui.status.innerText = "Loading world...";
-
-    // Clean up existing objects
     platforms.forEach(p => {
         scene.remove(p);
         if (p.geometry) p.geometry.dispose();
@@ -94,22 +100,22 @@ export async function syncAndBuildWorld(scene, ui, platforms, coins, enemies, pr
 
     let worldData = null;
 
-    // ===== ONLY USE FIREBASE IF MULTIPLAYER IS ENABLED AND DB EXISTS =====
     if (isMultiplayer && db) {
         try {
-            // Dynamic import of Firestore functions
             const { doc, getDoc, setDoc } = await import("https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js");
 
-            const worldDocRef = doc(db, "levels", "main_world");
+            const worldDocRef = doc(db, "levels", levelId);
+            console.log(`🌍 Connecting to level: ${levelId}`);
 
-            const cachedWorld = localStorage.getItem('cachedWorld');
+            const cacheKey = `cachedWorld_${levelId}`;
+            const cachedWorld = localStorage.getItem(cacheKey);
             if (cachedWorld) {
                 try {
                     const cached = JSON.parse(cachedWorld);
-                    console.log("📦 Using cached world data (no read needed)");
+                    console.log("📦 Using cached world data");
                     worldData = cached;
                 } catch (e) {
-                    console.warn("Failed to parse cached world, fetching from Firebase");
+                    console.warn("Failed to parse cache");
                 }
             }
 
@@ -117,14 +123,14 @@ export async function syncAndBuildWorld(scene, ui, platforms, coins, enemies, pr
                 const docSnap = await getDoc(worldDocRef);
 
                 if (docSnap.exists()) {
-                    console.log("☁️ Fetched world from Firebase (1 read)");
+                    console.log("☁️ Fetched world from Firebase");
                     worldData = docSnap.data();
-                    localStorage.setItem('cachedWorld', JSON.stringify(worldData));
+                    localStorage.setItem(cacheKey, JSON.stringify(worldData));
                 } else {
                     console.log("No world found, generating new one...");
-                    worldData = generateWorldData(CASTLE_Z);
+                    worldData = worldGenerator(CASTLE_Z);
                     await setDoc(worldDocRef, worldData);
-                    localStorage.setItem('cachedWorld', JSON.stringify(worldData));
+                    localStorage.setItem(cacheKey, JSON.stringify(worldData));
                 }
             }
 
@@ -134,24 +140,22 @@ export async function syncAndBuildWorld(scene, ui, platforms, coins, enemies, pr
 
         } catch (e) {
             console.error("Error fetching world:", e);
-            ui.status.innerHTML = "⚠️ <strong>Database Error:</strong> Falling back to offline mode.";
-            ui.status.className = "bg-yellow-100 text-yellow-800 p-3 rounded mb-4 border border-yellow-400";
-            worldData = generateWorldData(CASTLE_Z);
+            if(ui && ui.status) ui.status.innerHTML = "⚠️ <strong>Database Error:</strong> Falling back to offline mode.";
+            worldData = worldGenerator(CASTLE_Z);
         }
     } else {
-        // Offline mode - just generate locally
         console.log("🎮 Generating offline world");
-        worldData = generateWorldData(CASTLE_Z);
+        worldData = worldGenerator(CASTLE_Z);
     }
 
     if (!worldData || !worldData.platforms || worldData.platforms.length === 0) {
         console.warn("Received world data was empty, fallback to local generation.");
-        worldData = generateWorldData(CASTLE_Z);
+        worldData = worldGenerator(CASTLE_Z);
     }
 
     buildWorldFromData(worldData, scene, CASTLE_Z, platforms, coins, enemies, platformTexture, textureLoader);
 
-    if (!ui.status.innerText.includes("Error")) {
+    if (ui && ui.status && !ui.status.innerText.includes("Error")) {
         ui.status.innerText = "Have fun!";
     }
 }
@@ -159,7 +163,6 @@ export async function syncAndBuildWorld(scene, ui, platforms, coins, enemies, pr
 async function setupWorldListener(worldDocRef, scene, CASTLE_Z, platforms, coins, enemies, platformTexture, textureLoader) {
     let lastWorldTimestamp = null;
 
-    // Dynamic import
     const { onSnapshot } = await import("https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js");
 
     const unsubscribe = onSnapshot(worldDocRef, (docSnap) => {
@@ -222,60 +225,23 @@ async function setupWorldListener(worldDocRef, scene, CASTLE_Z, platforms, coins
     return unsubscribe;
 }
 
-// --- WORLD DATA GENERATOR ---
-export function generateWorldData(CASTLE_Z) {
-    const data = {
-        platforms: [],
-        coins: [],
-        enemies: [],
-        generatedAt: Date.now()
-    };
-
-    // Start platform
-    data.platforms.push({ x: 0, y: -2, z: 0, w: 10, h: 2, d: 10 });
-
-    let z = -10;
-    while (z > CASTLE_Z + 20) {
-        let x = (Math.random() - 0.5) * 30;
-        let y = (Math.random() - 0.5) * 6;
-        let w = 4 + Math.random() * 4;
-        let h = 2 + Math.random() * 2;
-        let d = 4 + Math.random() * 4;
-
-        data.platforms.push({ x, y, z, w, h, d });
-
-        if (Math.random() > 0.4) data.coins.push({ x, y: y + 3, z });
-        if (Math.random() > 0.7) data.enemies.push({ x, y: y + 3, z });
-        z -= (5 + Math.random() * 4);
-    }
-    // End platform (at castle)
-    data.platforms.push({ x: 0, y: 0, z: CASTLE_Z, w: 20, h: 2, d: 20 });
-
-    return data;
-}
-
-// --- HELPER: TEXT TEXTURE GENERATOR ---
 function createTextTexture(text) {
     const canvas = document.createElement('canvas');
     canvas.width = 1024;
     canvas.height = 256;
     const ctx = canvas.getContext('2d');
 
-    // Transparent background
     ctx.fillStyle = 'rgba(0, 0, 0, 0)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Text style
     ctx.font = 'bold 120px Arial, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
-    // Text outline
     ctx.lineWidth = 8;
     ctx.strokeStyle = 'black';
     ctx.strokeText(text, canvas.width / 2, canvas.height / 2);
 
-    // Text color (Gold/Orange gradient)
     const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
     gradient.addColorStop(0, "#FFD700");
     gradient.addColorStop(1, "#FF8C00");
@@ -288,12 +254,9 @@ function createTextTexture(text) {
     return texture;
 }
 
-// --- LOW POLY CASTLE BUILDER ---
 function createCastle(scene, CASTLE_Z) {
-    // console.log("creating castle") // enable to see when castle is created..
     const castle = new THREE.Group();
 
-    // === MAIN KEEP ===
     const keep = new THREE.Mesh(
         new THREE.BoxGeometry(10, 12, 10),
         new THREE.MeshStandardMaterial({ color: 0xbababa })
@@ -301,7 +264,6 @@ function createCastle(scene, CASTLE_Z) {
     keep.position.y = 6;
     castle.add(keep);
 
-    // === CORNER TOWERS ===
     const towerGeo = new THREE.CylinderGeometry(2, 2, 14, 6);
     const towerMat = new THREE.MeshStandardMaterial({ color: 0x999999 });
 
@@ -325,7 +287,6 @@ function createCastle(scene, CASTLE_Z) {
         castle.add(roof);
     });
 
-    // === WALLS ===
     const wallMat = new THREE.MeshStandardMaterial({ color: 0xaaaaaa });
 
     const walls = [
@@ -345,12 +306,10 @@ function createCastle(scene, CASTLE_Z) {
 
     });
 
-    // === FINAL POSITION ===
     castle.position.set(0, 1, CASTLE_Z);
     scene.add(castle);
 }
 
-// --- BUILD WORLD ---
 export function buildWorldFromData(data, scene, CASTLE_Z, platforms, coins, enemies, platformTexture, textureLoader) {
 
     const sharedCloudMaterial = new THREE.MeshStandardMaterial({
@@ -382,7 +341,6 @@ export function buildWorldFromData(data, scene, CASTLE_Z, platforms, coins, enem
     scene.add(sky);
 }
 
-// --- ROUND CLOUD GENERATION ---
 function createPlat(x, y, z, w, h, d, scene, platforms, material) {
     const useMat = material || new THREE.MeshStandardMaterial({ color: 0xffffff });
 
@@ -434,12 +392,10 @@ function createCoin(x, y, z, scene, coins) {
     mesh.rotation.z = Math.PI / 2;
     mesh.baseY = y;
     mesh.bobOffset = Math.random() * Math.PI * 2;
-    // console.log("created coin at: ", x, y, z) //enable to check coin
     scene.add(mesh);
     coins.push(mesh);
 }
 
-// --- Star GENERATION ---
 function createStar(x, y, z, scene, coins) {
     let mesh;
 
@@ -466,13 +422,11 @@ function createStar(x, y, z, scene, coins) {
     coins.push(mesh);
 }
 
-// Export function to spawn coin at enemy position
 export function spawnStarAtPosition(x, y, z, scene, coins) {
     createStar(x, y, z, scene, coins);
     console.log(`🪙 Coin spawned at (${x.toFixed(2)}, ${y.toFixed(2)}, ${z.toFixed(2)})`);
 }
 
-// --- ENEMY GENERATION ---
 function createEnemy(x, y, z, scene, enemies, platforms) {
     let mesh;
 
@@ -512,7 +466,6 @@ function createEnemy(x, y, z, scene, enemies, platforms) {
     enemies.push(mesh);
 }
 
-// Cleanup function
 export function cleanupWorldListener() {
     if (worldUnsubscribe) {
         worldUnsubscribe();
@@ -526,18 +479,15 @@ function createPromptTexture() {
     canvas.width = 128; canvas.height = 128;
     const ctx = canvas.getContext('2d');
 
-    // Cirkel achtergrond
     ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
     ctx.beginPath();
     ctx.arc(64, 64, 60, 0, Math.PI * 2);
     ctx.fill();
 
-    // Rand
-    ctx.strokeStyle = '#FFD700'; // Goud
+    ctx.strokeStyle = '#FFD700'; 
     ctx.lineWidth = 10;
     ctx.stroke();
 
-    // Tekst "E"
     ctx.fillStyle = '#FFFFFF';
     ctx.font = 'bold 80px Arial';
     ctx.textAlign = 'center';
@@ -547,7 +497,7 @@ function createPromptTexture() {
     const texture = new THREE.CanvasTexture(canvas);
     return texture;
 }
-// --- RONNIE & ABILITIES ---
+
 export function loadRonnie(scene, gltfLoader, position) {
     const suffix = getQualitySuffix();
 
@@ -555,13 +505,11 @@ export function loadRonnie(scene, gltfLoader, position) {
         const ronnie = gltf.scene;
         ronnie.scale.set(1.3, 1.3, 1.3);
         ronnie.position.set(position.x, position.y, position.z);
-        // Laat Ronnie naar de spawn kijken (draai 180 graden indien nodig)
         ronnie.rotation.y = Math.PI;
 
         ronnie.traverse((child) => {
             if (child.isMesh) {
                 child.userData.isRonnie = true;
-                // Zorg dat de parent ook herkenbaar is
                 child.userData.parentGroup = ronnie;
             }
         });
@@ -570,21 +518,19 @@ export function loadRonnie(scene, gltfLoader, position) {
         const promptMat = new THREE.SpriteMaterial({
             map: createPromptTexture(),
             transparent: true,
-            depthTest: false, // Zorg dat hij altijd bovenop rendered (optioneel)
+            depthTest: false, 
             depthWrite: false
         });
         const promptSprite = new THREE.Sprite(promptMat);
-        promptSprite.position.set(0, 2.8, 0); // Zweeft boven zijn hoofd
+        promptSprite.position.set(0, 2.8, 0); 
         promptSprite.scale.set(0.8, 0.8, 0.8);
-        promptSprite.visible = false; // Standaard onzichtbaar
-        promptSprite.name = "InteractionPrompt"; // Makkelijk terugvinden
+        promptSprite.visible = false; 
+        promptSprite.name = "InteractionPrompt"; 
 
         ronnie.add(promptSprite);
-        // ------------------------------------------------
 
         scene.add(ronnie);
 
-        // Sla Ronnie globaal op zodat main.js hem makkelijk kan vinden voor afstands-check
         window.ronnie = ronnie;
 
         console.log("🧥 Ronnie (met E-prompt) is aanwezig.");
@@ -597,13 +543,11 @@ export function summonCloudPlatform(playerPos, scene, platforms, texture) {
     const mat = new THREE.MeshStandardMaterial({ map: texture || null, color: 0xaaaaaa });
     const cloud = new THREE.Mesh(geo, mat);
 
-    // Spawn iets onder de speler
     cloud.position.set(playerPos.x, playerPos.y - 2, playerPos.z);
 
     scene.add(cloud);
     platforms.push(cloud);
 
-    // Verdwijn na 10 seconden
     setTimeout(() => {
         scene.remove(cloud);
         const idx = platforms.indexOf(cloud);
@@ -617,7 +561,6 @@ function createCloudySky() {
     canvas.height = 512;
     const ctx = canvas.getContext('2d');
     
-    // Sky gradient
     const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
     gradient.addColorStop(0, '#4A90E2');
     gradient.addColorStop(0.7, '#87CEEB');
@@ -625,7 +568,6 @@ function createCloudySky() {
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     
-    // Paint some soft clouds
     ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
     for (let i = 0; i < 15; i++) {
         const x = Math.random() * canvas.width;
@@ -640,12 +582,11 @@ function createCloudySky() {
     
     const texture = new THREE.CanvasTexture(canvas);
     
-    // Create MUCH larger sky sphere - USE BASIC MATERIAL (doesn't need light)
     const skyGeo = new THREE.SphereGeometry(500, 32, 32);
     const skyMat = new THREE.MeshBasicMaterial({
         map: texture,
         side: THREE.BackSide,
-        fog: false  // Sky not affected by fog
+        fog: false 
     });
     
     const sky = new THREE.Mesh(skyGeo, skyMat);

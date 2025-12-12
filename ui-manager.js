@@ -4,65 +4,93 @@ export class UIManager {
     constructor() {
         // Cache all DOM elements
         this.dom = {
+            // -- Legacy / Init --
             startScreen: document.getElementById('start-screen'),
             authStatus: document.getElementById('auth-status'),
             startBtn: document.getElementById('start-btn'),
             
-            // Auth Forms
-            loginContainer: document.getElementById('login-form-container'),
-            showLoginBtn: document.getElementById('show-login-btn'),
-            emailInput: document.getElementById('email-input'),
-            passInput: document.getElementById('password-input'),
-            linkBtn: document.getElementById('btn-link-account'),
-            loginBtn: document.getElementById('btn-login'),
-            logoutBtn: document.getElementById('btn-logout'),
-            authError: document.getElementById('auth-error'),
+            // -- Kiosk UI --
+            kioskScreen: document.getElementById('kiosk-screen'),
+            kioskCloseBtn: document.getElementById('kiosk-close-btn'),
+            kioskUsername: document.getElementById('kiosk-username'),
+            kioskSaveNameBtn: document.getElementById('kiosk-save-name'),
+            kioskEmail: document.getElementById('kiosk-email'),
+            kioskPass: document.getElementById('kiosk-password'),
+            kioskLoginBtn: document.getElementById('kiosk-login-btn'),
+            kioskLinkBtn: document.getElementById('kiosk-link-btn'),
+            kioskLogoutBtn: document.getElementById('kiosk-logout-btn'),
+            kioskAuthStatus: document.getElementById('kiosk-auth-status'),
+            
+            // Tabs
+            tabProfile: document.getElementById('tab-profile'),
+            tabControls: document.getElementById('tab-controls'),
+            contentProfile: document.getElementById('content-profile'),
+            contentControls: document.getElementById('content-controls'),
 
-            // Character Selection
-            charPreviews: document.querySelectorAll('.char-preview'),
-            usernameInput: document.getElementById('username-input'),
-
-            // HUD
+            // -- HUD --
             uiContainer: document.querySelector('.ui-container'),
             mobileMenuBtn: document.getElementById('mobile-menu-btn'),
             coinDisplay: document.getElementById('coin-display'),
             starDisplay: document.getElementById('star-display'),
-            peerCount: document.getElementById('peer-count'),
-            nameDisplay: document.getElementById('player-name-display'),
+            peerCount: document.getElementById('peer-count-display'),
+            nameDisplay: document.getElementById('hud-name-display'),
             progressBar: document.getElementById('progress-bar'),
             progressFill: document.getElementById('progress-fill'),
             progressText: document.getElementById('progress-text'),
             versionDisplay: document.getElementById('version-display'),
             statusMsg: document.getElementById('status-msg'),
 
-            // Menus
+            // -- Menus --
             pauseScreen: document.getElementById('pause-screen'),
             resumeBtn: document.getElementById('resume-btn'),
             restartBtn: document.getElementById('restart-btn-menu'),
             fullscreenBtn: document.getElementById('fullscreen-btn'),
-            settingsBtn: document.getElementById('settings-btn'), // Toegevoegd voor de zekerheid
+            settingsBtn: document.getElementById('settings-btn'),
             
-            // Game Over
+            // -- Game Over --
             gameOverScreen: document.getElementById('game-over-screen'),
             goReason: document.getElementById('go-reason'),
             
-            // Hints
-            controlsHint: document.getElementById('controls-hint')
+            // -- Character Previews --
+            charPreviews: document.querySelectorAll('.char-preview'),
+            usernameInput: document.getElementById('username-input'),
         };
 
         this.statusMessages = { model: "", firebase: "" };
         
-        // Bind internal UI logic (toggles that don't need main.js)
         this._bindInternalEvents();
     }
 
     _bindInternalEvents() {
-        // Toggle Login Form
-        if (this.dom.showLoginBtn) {
-            this.dom.showLoginBtn.addEventListener('click', () => {
-                this.dom.loginContainer.classList.toggle('hidden');
+        // Kiosk Tabs
+        if (this.dom.tabProfile) {
+            this.dom.tabProfile.addEventListener('click', () => {
+                this._switchTab('profile');
             });
-        };
+        }
+        if (this.dom.tabControls) {
+            this.dom.tabControls.addEventListener('click', () => {
+                this._switchTab('controls');
+            });
+        }
+    }
+
+    _switchTab(tab) {
+        if (tab === 'profile') {
+            this.dom.contentProfile.classList.remove('hidden');
+            this.dom.contentControls.classList.add('hidden');
+            this.dom.tabProfile.classList.add('text-indigo-600', 'border-b-2', 'border-indigo-600');
+            this.dom.tabProfile.classList.remove('text-gray-500');
+            this.dom.tabControls.classList.remove('text-indigo-600', 'border-b-2', 'border-indigo-600');
+            this.dom.tabControls.classList.add('text-gray-500');
+        } else {
+            this.dom.contentProfile.classList.add('hidden');
+            this.dom.contentControls.classList.remove('hidden');
+            this.dom.tabControls.classList.add('text-indigo-600', 'border-b-2', 'border-indigo-600');
+            this.dom.tabControls.classList.remove('text-gray-500');
+            this.dom.tabProfile.classList.remove('text-indigo-600', 'border-b-2', 'border-indigo-600');
+            this.dom.tabProfile.classList.add('text-gray-500');
+        }
     }
 
     // --- SETUP & STATUS ---
@@ -75,74 +103,43 @@ export class UIManager {
     }
 
     setControlsHint(isMobile) {
-        if (!this.dom.controlsHint) return;
-        if (isMobile) {
-            this.dom.controlsHint.innerHTML = `
-                <p><strong>Mobile Controls:</strong></p>
-                <ul class="list-disc pl-4 mt-1">
-                    <li>🕹️ <strong>Left Side:</strong> Joystick (Move)</li>
-                    <li>👆 <strong>Right Side:</strong> Drag to look</li>
-                    <li>⚡ <strong>Double Tap (Right):</strong> Jump</li>
-                    <li>💥 <strong>Button:</strong> Spit</li>
-                    <li>🍃 <strong>Button:</strong> Smoke</li>
-                </ul>`;
-        } else {
-            this.dom.controlsHint.innerHTML = `
-                <p><strong>PC Controls:</strong></p>
-                <p>WASD (Move) | Space (Jump) | Mouse (Look) | Shift (Run) | LMB (Spit) | RMB (Smoke)</p>`;
-        }
+        // This is now inside the Kiosk HTML structure directly
     }
 
     updateStatus(type, message, color) {
         this.statusMessages[type] = { text: message, color: color };
-        const messages = [];
-        const colors = [];
-
-        if (this.statusMessages.model.text) {
-            messages.push(this.statusMessages.model.text);
-            colors.push(this.statusMessages.model.color);
+        
+        if (type === 'firebase' && this.dom.kioskAuthStatus) {
+            this.dom.kioskAuthStatus.innerHTML = message;
+            if (color.includes('green')) this.dom.kioskAuthStatus.style.color = 'green';
+            else if (color.includes('red')) this.dom.kioskAuthStatus.style.color = 'red';
+            else this.dom.kioskAuthStatus.style.color = 'gray';
         }
-        if (this.statusMessages.firebase.text) {
-            messages.push(this.statusMessages.firebase.text);
-            colors.push(this.statusMessages.firebase.color);
-        }
-
-        const colorPriority = { red: 1, yellow: 2, purple: 3, blue: 4, green: 5 };
-        const finalColor = colors.sort((a, b) => colorPriority[a] - colorPriority[b])[0] || "blue";
-
-        const colorClasses = {
-            red: "bg-red-100 text-red-800 border-red-400",
-            yellow: "bg-yellow-100 text-yellow-800 border-yellow-400",
-            purple: "bg-purple-100 text-purple-800 border-purple-400",
-            blue: "bg-blue-100 text-blue-800 border-blue-400",
-            green: "bg-green-100 text-green-800 border-green-400"
-        };
-
-        this.dom.authStatus.innerHTML = messages.join("<br>");
-        this.dom.authStatus.className = `text-sm p-3 mb-4 rounded-lg border ${colorClasses[finalColor]}`;
     }
 
     enableStartButton() {
-        this.dom.startBtn.disabled = false;
-        this.dom.startBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        if(this.dom.startBtn) {
+            this.dom.startBtn.disabled = false;
+            this.dom.startBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        }
     }
 
     // --- EVENT BINDING ---
 
     onStart(callback) {
-        this.dom.startBtn.addEventListener('click', () => {
-            const name = this.dom.usernameInput.value.trim();
-            callback(name);
-        });
+        if(this.dom.startBtn) {
+            this.dom.startBtn.addEventListener('click', () => {
+                const name = this.dom.usernameInput.value.trim();
+                callback(name);
+            });
+        }
     }
 
     onCharacterSelect(callback) {
         this.dom.charPreviews.forEach(btn => {
             btn.addEventListener('click', () => {
-                // UI update
                 this.dom.charPreviews.forEach(b => b.classList.remove('selected'));
                 btn.classList.add('selected');
-                // Trigger callback
                 callback(btn.dataset.model);
             });
         });
@@ -152,53 +149,97 @@ export class UIManager {
         return this.dom.charPreviews;
     }
 
-    // Auth Callbacks
+    // --- KIOSK LOGIC ---
+    toggleKiosk(show) {
+        if (show) {
+            this.dom.kioskScreen.style.display = 'flex';
+            setTimeout(() => this.dom.kioskScreen.classList.add('active'), 10);
+            
+            // Pre-fill name if available
+            const currentName = this.dom.nameDisplay.innerText;
+            if (currentName !== 'Guest') this.dom.kioskUsername.value = currentName;
+            
+        } else {
+            this.dom.kioskScreen.classList.remove('active');
+            setTimeout(() => this.dom.kioskScreen.style.display = 'none', 300);
+        }
+    }
+
+    onKioskClose(callback) {
+        if(this.dom.kioskCloseBtn) {
+            this.dom.kioskCloseBtn.onclick = callback; // Direct assignment to prevent duplicates
+        }
+    }
+
+    onKioskNameChange(callback) {
+        if(this.dom.kioskSaveNameBtn) {
+            this.dom.kioskSaveNameBtn.addEventListener('click', () => {
+                const newName = this.dom.kioskUsername.value.trim();
+                if (newName) {
+                    this.dom.nameDisplay.innerText = newName;
+                    callback(newName);
+                    alert("Name saved!");
+                }
+            });
+        }
+    }
+
+    // Auth Callbacks (Kiosk)
     onLogin(callback) {
-        if (!this.dom.loginBtn) return;
-        this.dom.loginBtn.addEventListener('click', async () => {
-            this.setAuthMessage("Logging in...", "text-gray-500");
-            const email = this.dom.emailInput.value;
-            const pass = this.dom.passInput.value;
-            try {
-                await callback(email, pass);
-                this.setAuthMessage("Welcome back!", "text-green-500");
-                window.location.reload(); 
-            } catch (err) {
-                this.setAuthMessage(err.message, "text-red-500");
-            }
-        });
+        if (this.dom.kioskLoginBtn) {
+            this.dom.kioskLoginBtn.addEventListener('click', async () => {
+                this.dom.kioskAuthStatus.innerText = "Logging in...";
+                const email = this.dom.kioskEmail.value;
+                const pass = this.dom.kioskPass.value;
+                try {
+                    await callback(email, pass);
+                    this.dom.kioskAuthStatus.innerText = "✅ Logged in!";
+                    this.dom.kioskAuthStatus.style.color = "green";
+                    this.dom.kioskLoginBtn.classList.add('hidden');
+                    this.dom.kioskLogoutBtn.classList.remove('hidden');
+                } catch (err) {
+                    this.dom.kioskAuthStatus.innerText = "❌ Error: " + err.message;
+                    this.dom.kioskAuthStatus.style.color = "red";
+                }
+            });
+        }
     }
 
     onLinkAccount(callback) {
-        if (!this.dom.linkBtn) return;
-        this.dom.linkBtn.addEventListener('click', async () => {
-            this.setAuthMessage("Linking...", "text-gray-500");
-            const email = this.dom.emailInput.value;
-            const pass = this.dom.passInput.value;
-            try {
-                await callback(email, pass);
-                this.setAuthMessage("Success! Progress Saved.", "text-green-500");
-            } catch (err) {
-                this.setAuthMessage(err.message, "text-red-500");
-            }
-        });
+        if (this.dom.kioskLinkBtn) {
+            this.dom.kioskLinkBtn.addEventListener('click', async () => {
+                this.dom.kioskAuthStatus.innerText = "Linking...";
+                const email = this.dom.kioskEmail.value;
+                const pass = this.dom.kioskPass.value;
+                try {
+                    await callback(email, pass);
+                    this.dom.kioskAuthStatus.innerText = "✅ Account Linked!";
+                    this.dom.kioskAuthStatus.style.color = "green";
+                } catch (err) {
+                    this.dom.kioskAuthStatus.innerText = "❌ Error: " + err.message;
+                    this.dom.kioskAuthStatus.style.color = "red";
+                }
+            });
+        }
     }
 
     onLogout(callback) {
-        if (!this.dom.logoutBtn) return;
-        this.dom.logoutBtn.addEventListener('click', async () => {
-            await callback();
-        });
+        if (this.dom.kioskLogoutBtn) {
+            this.dom.kioskLogoutBtn.addEventListener('click', async () => {
+                await callback();
+            });
+        }
     }
 
     setAuthMessage(msg, colorClass) {
-        this.dom.authError.innerText = msg;
-        this.dom.authError.className = `text-xs mt-2 font-bold ${colorClass}`;
+        if(this.dom.authError) {
+             this.dom.authError.innerText = msg;
+             this.dom.authError.className = `text-xs mt-2 font-bold ${colorClass}`;
+        }
     }
 
     // Menu Callbacks
     onPauseToggle(callback) {
-        // Mobile menu button
         this.dom.mobileMenuBtn.addEventListener('click', () => {
             const isPaused = this.dom.pauseScreen.classList.contains('active');
             callback(isPaused); 
@@ -713,12 +754,6 @@ export class UIManager {
                         <path d="M51.798,17.859l2.828-2.829c1.574-1.566,1.562-4.094,0-5.657   c-1.559-1.567-4.09-1.567-5.652-0.004l-2.829,2.836c-1.562,1.555-1.562,4.086,0,5.649C47.699,19.426,50.239,19.418,51.798,17.859z"/>
                         <path d="M32.003,11.995c2.207,0.016,4-1.789,4-3.992v-4   c0-2.219-1.789-4-4-4c-2.211-0.008-4,1.781-4,3.993l0.008,4.008C28.003,10.206,29.792,11.995,32.003,11.995z"/>
                         <path d="M12.212,17.855c1.555,1.562,4.079,1.562,5.646-0.004   c1.574-1.551,1.566-4.09,0.008-5.649l-2.829-2.828c-1.57-1.571-4.094-1.559-5.657,0c-1.575,1.559-1.575,4.09-0.012,5.653   L12.212,17.855z"/>
-                    </g>
-        
-                    <g transform="translate(14.5, 14.5) scale(0.75)" fill="white">
-                        <path d="M19.9001 2.30719C19.7392 1.8976 19.1616 1.8976 19.0007 2.30719L18.5703 3.40247C18.5212 3.52752 18.4226 3.62651 18.298 3.67583L17.2067 4.1078C16.7986 4.26934 16.7986 4.849 17.2067 5.01054L18.298 5.44252C18.4226 5.49184 18.5212 5.59082 18.5703 5.71587L19.0007 6.81115C19.1616 7.22074 19.7392 7.22074 19.9001 6.81116L20.3305 5.71587C20.3796 5.59082 20.4782 5.49184 20.6028 5.44252L21.6941 5.01054C22.1022 4.849 22.1022 4.26934 21.6941 4.1078L20.6028 3.67583C20.4782 3.62651 20.3796 3.52752 20.3305 3.40247L19.9001 2.30719Z"/>
-                        <path d="M16.0328 8.12967C15.8718 7.72009 15.2943 7.72009 15.1333 8.12967L14.9764 8.52902C14.9273 8.65407 14.8287 8.75305 14.7041 8.80237L14.3062 8.95987C13.8981 9.12141 13.8981 9.70107 14.3062 9.86261L14.7041 10.0201C14.8287 10.0694 14.9273 10.1684 14.9764 10.2935L15.1333 10.6928C15.2943 11.1024 15.8718 11.1024 16.0328 10.6928L16.1897 10.2935C16.2388 10.1684 16.3374 10.0694 16.462 10.0201L16.8599 9.86261C17.268 9.70107 17.268 9.12141 16.8599 8.95987L16.462 8.80237C16.3374 8.75305 16.2388 8.65407 16.1897 8.52902L16.0328 8.12967Z"/>
-                        <path d="M12 22C17.5228 22 22 17.5228 22 12C22 11.5373 21.3065 11.4608 21.0672 11.8568C19.9289 13.7406 17.8615 15 15.5 15C11.9101 15 9 12.0899 9 8.5C9 6.13845 10.2594 4.07105 12.1432 2.93276C12.5392 2.69347 12.4627 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z"/>
                     </g>    
         
                     <line x1="4" y1="28" x2="28" y2="4" stroke="white" stroke-width="1.5" stroke-linecap="round" />

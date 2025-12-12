@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { syncAndBuildWorld, generateWorldData, ASSET_CONFIG, spawnStarAtPosition } from './world.js';
+import { syncAndBuildWorld, ASSET_CONFIG, spawnStarAtPosition } from './world.js';
 import { MobileControls } from './mobile-controls.js';
 import { AudioManager } from './audio-manager.js';
 import { ModelManager } from './model-manager.js';
@@ -10,15 +10,16 @@ import { loadRonnie, summonCloudPlatform } from './world.js';
 import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/loaders/GLTFLoader.js';
 import { WeatherSystem } from './weather.js';
 import { DRACOLoader } from 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/loaders/DRACOLoader.js';
-import { OutlineEffect } from 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/effects/OutlineEffect.js';
 import { EffectComposer } from 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/postprocessing/RenderPass.js';
 import { OutlinePass } from 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/postprocessing/OutlinePass.js';
+import * as GameWorld from './worlds/game_main.js';
+import * as HomeWorld from './worlds/home_lobby.js';
 
 // ===== FEATURE FLAGS =====
 const FEATURES = {
-    MULTIPLAYER: false,  // Set to false to disable all multiplayer
-    SHOP_ONLINE: false   // Set to false for offline shop (localStorage)
+    MULTIPLAYER: true,  // Set to false to disable all multiplayer
+    SHOP_ONLINE: true   // Set to false for offline shop (localStorage)
 };
 
 // ===== CONDITIONAL IMPORTS =====
@@ -97,6 +98,8 @@ let jumpCount = 0;
 let isGliding = false;
 let weatherSystem;
 let lastFrameTime = 0;
+let lobbyState = null;
+window.wardrobeModels = []; 
 
 const raycaster = new THREE.Raycaster();
 const downDirection = new THREE.Vector3(0, -1, 0);
@@ -286,7 +289,9 @@ window.onload = async () => {
 
                 await loadUserProgress();
                 uiManager.initHUD(coinsCollected, starsCollected);
-                checkIfReadyToStart();
+                
+                // Instead of checkIfReadyToStart, load Lobby if connected
+                loadHomeLobby();
 
                 // Start multiplayer listeners
                 if (multiplayerModule) {
@@ -316,7 +321,8 @@ async function initOfflineMode() {
     uiManager.initHUD(coinsCollected, starsCollected);
     uiManager.updateStatus("firebase", "🎮 Offline", "gray");
 
-    checkIfReadyToStart();
+    // Load lobby immediately in offline mode
+    loadHomeLobby();
 }
 
 
@@ -470,10 +476,13 @@ function initThreeJS() {
         renderer.setSize(window.innerWidth, window.innerHeight);
     });
 
-    animate();
-    setupAudio();
-
     initFireballAssets();
+
+    // 🔥 FIX: Initialiseer de loop correct met een timestamp
+    lastFrameTime = performance.now();
+    requestAnimationFrame(animate);
+    
+    setupAudio();
 }
 
 // --- GAMEPLAY FUNCTIONS ---
@@ -551,10 +560,14 @@ let isGrounded = false;
 function animate(time) {
     requestAnimationFrame(animate);
 
+    // Fallback voor als time undefined is (eerste frame safety)
+    if (!time) time = performance.now();
+
     const delta = (time - lastFrameTime) / 750;
     lastFrameTime = time;
 
-    if (delta > 0.1) return;
+    // NaN Safety check
+    if (isNaN(delta) || delta > 0.1) return;
 
     // --- START AUTO THEME CHECK ---
     // Alleen checken als we echt op 'auto' staan
@@ -600,44 +613,102 @@ function animate(time) {
         weatherSystem.update(delta, isTripping, audioLevel); 
     }
 
-    if (window.gameState === 'playing') {
-        const currentWeather = weatherSystem.getCurrentWeather();
-        const weatherType = currentWeather === 'night' ? 'night' : 'day';
-        let targetBg = isTripping ? COLORS.trip.bg : COLORS[weatherType].bg;
-        let targetFog = isTripping ? COLORS.trip.fog : COLORS[weatherType].fog;
+    // === LOBBY INTERACTION ===
+    if (window.gameState === 'lobby' && lobbyState) {
+        // Portal Checks
+        if (lobbyState.portals.offline) {
+            const distOff = player.position.distanceTo(lobbyState.portals.offline.position);
+            if (distOff < 2.0) {
+                startGameTransition('offline');
+            }
+        }
+        if (lobbyState.portals.online) {
+            // Only trigger online if actually connected/available (logic can be expanded)
+            const distOn = player.position.distanceTo(lobbyState.portals.online.position);
+            if (distOn < 2.0) {
+                startGameTransition('online');
+            }
+        }
+
+        // Wardrobe Checks
+        lobbyState.objects.forEach(obj => {
+            if (obj.userData.isWardrobe) {
+                const dist = player.position.distanceTo(obj.position);
+                if (dist < 1.5 && selectedModelFile !== obj.userData.modelFile) {
+                    console.log("👗 Switching to:", obj.userData.modelFile);
+                    selectedModelFile = obj.userData.modelFile;
+                    
+                    modelManager.dispose();
+                    player.remove(modelManager.playerModel);
+                    modelManager.loadPlayerModel(selectedModelFile, player, {
+                        onLoaded: () => console.log("Character swapped!")
+                    });
+                    
+                    velocity.y = 5; 
+                    if (audioManager) audioManager.playSFX('jump');
+                }
+            }
+        });
+    }
+
+    // Only allow movement if state is playing or lobby
+    if (window.gameState === 'playing' || window.gameState === 'lobby') {
+        // --- FORCEER DAGLICHT IN LOBBY ---
+        let targetBg, targetFog;
+
+        if (window.gameState === 'lobby') {
+            targetBg = COLORS.day.bg;
+            targetFog = COLORS.day.fog;
+            
+            // Forceer lichten fel
+            if (window.gameLights) {
+                window.gameLights.ambient.intensity = 0.8;
+                window.gameLights.dirLight.intensity = 1.0;
+                window.gameLights.dirLight.color.setHex(0xffffff);
+            }
+        } else {
+            // Normale game logica
+            const currentWeather = weatherSystem.getCurrentWeather();
+            const weatherType = currentWeather === 'night' ? 'night' : 'day';
+            targetBg = isTripping ? COLORS.trip.bg : COLORS[weatherType].bg;
+            targetFog = isTripping ? COLORS.trip.fog : COLORS[weatherType].fog;
+            
+            // Normale licht logica
+            if (window.gameLights) {
+                let targetAmbInt = 0.25;
+                let targetDirInt = 0.6;
+                let targetHemiInt = 0.3;
+                let targetLightColor = new THREE.Color(0xffffff);
+
+                if (weatherType === 'night' && !isTripping) {
+                    targetAmbInt = 0.05;
+                    targetDirInt = 0.2;
+                    targetHemiInt = 0.1;
+                    targetLightColor.setHex(0x8888ff);
+                }
+
+                window.gameLights.ambient.intensity = THREE.MathUtils.lerp(window.gameLights.ambient.intensity, targetAmbInt, delta);
+                window.gameLights.dirLight.intensity = THREE.MathUtils.lerp(window.gameLights.dirLight.intensity, targetDirInt, delta);
+                window.gameLights.hemiLight.intensity = THREE.MathUtils.lerp(window.gameLights.hemiLight.intensity, targetHemiInt, delta);
+                window.gameLights.dirLight.color.lerp(targetLightColor, delta);
+            }
+        }
 
         scene.background.lerp(targetBg, delta * 2.0);
         scene.fog.color.lerp(targetFog, delta * 2.0);
 
-        if (window.gameLights) {
-            let targetAmbInt = 0.25;
-            let targetDirInt = 0.6;
-            let targetHemiInt = 0.3;
-            let targetLightColor = new THREE.Color(0xffffff);
-
-            if (weatherType === 'night' && !isTripping) {
-                targetAmbInt = 0.05;
-                targetDirInt = 0.2;
-                targetHemiInt = 0.1;
-                targetLightColor.setHex(0x8888ff);
-            }
-
-            window.gameLights.ambient.intensity = THREE.MathUtils.lerp(window.gameLights.ambient.intensity, targetAmbInt, delta);
-            window.gameLights.dirLight.intensity = THREE.MathUtils.lerp(window.gameLights.dirLight.intensity, targetDirInt, delta);
-            window.gameLights.hemiLight.intensity = THREE.MathUtils.lerp(window.gameLights.hemiLight.intensity, targetHemiInt, delta);
-            window.gameLights.dirLight.color.lerp(targetLightColor, delta);
-        }
 
         const sky = scene.children.find(child => child.userData.skyMaterial);
         if (sky && sky.userData.skyMaterial) {
             let targetSkyColor = new THREE.Color(0xffffff); // Default day
 
-            if (currentWeather === 'night' && !isTripping) {
-                targetSkyColor.setHex(0x0a0a1a); // Very dark blue
-            } else if (isTripping) {
-                targetSkyColor.setHex(0x113311); // Trip mode green tint
-            } else {
-                targetSkyColor.setHex(0xffffff); // Bright day
+            if (window.gameState !== 'lobby') {
+                const currentWeather = weatherSystem.getCurrentWeather();
+                if (currentWeather === 'night' && !isTripping) {
+                    targetSkyColor.setHex(0x0a0a1a); // Very dark blue
+                } else if (isTripping) {
+                    targetSkyColor.setHex(0x113311); // Trip mode green tint
+                }
             }
 
             // LERP the sky color smoothly
@@ -648,7 +719,12 @@ function animate(time) {
         targetGravity = isTripping ? mods.tripGravity : mods.baseGravity;
         currentGravity = THREE.MathUtils.lerp(currentGravity, targetGravity, delta * 2);
 
-        velocity.y -= currentGravity * delta;
+        // NaN Safety for velocity
+        if (!isNaN(velocity.y) && !isNaN(currentGravity) && !isNaN(delta)) {
+             velocity.y -= currentGravity * delta;
+        } else {
+             velocity.set(0,0,0);
+        }
 
         let currentDrag;
         // Determine drag based on grounded state
@@ -660,8 +736,12 @@ function animate(time) {
         } else {
             currentDrag = mods.dragAir;
         }
-        velocity.x -= velocity.x * 10 * currentDrag * delta;
-        velocity.z -= velocity.z * 10 * currentDrag * delta;
+        
+        // Safety check before drag
+        if (!isNaN(velocity.x) && !isNaN(velocity.z)) {
+            velocity.x -= velocity.x * 10 * currentDrag * delta;
+            velocity.z -= velocity.z * 10 * currentDrag * delta;
+        }
 
         const fwd = new THREE.Vector3(0, 0, -1).applyEuler(player.rotation);
         const right = new THREE.Vector3(1, 0, 0).applyEuler(player.rotation);
@@ -692,7 +772,10 @@ function animate(time) {
         if (moveL) velocity.add(right.clone().multiplyScalar(-currentSpeed * delta * 10));
         if (moveR) velocity.add(right.clone().multiplyScalar(currentSpeed * delta * 10));
 
-        player.position.add(velocity.clone().multiplyScalar(delta));
+        // Safety check before moving player
+        if (!isNaN(velocity.x) && !isNaN(velocity.y) && !isNaN(velocity.z)) {
+            player.position.add(velocity.clone().multiplyScalar(delta));
+        }
 
         // Calculate local velocity for strafing animations
         const localVelocity = velocity.clone();
@@ -714,18 +797,29 @@ function animate(time) {
 
         // Abyss check
         if (player.position.y < -30) {
-            endGame("Je bent in de afgrond gevallen!", false);
+            if (window.gameState === 'lobby') {
+                // Respawn in lobby
+                player.position.set(0, 5, 0);
+                velocity.set(0,0,0);
+            } else {
+                endGame("Je bent in de afgrond gevallen!", false);
+            }
         }
 
         // Ground detection logic
+        // Use platforms array + lobby objects if in lobby
+        const checkObjects = (window.gameState === 'lobby' && lobbyState) ? lobbyState.objects : platforms;
+        
         const rayOrigin = player.position.clone().add(new THREE.Vector3(0, 2.5, 0));
         raycaster.set(rayOrigin, downDirection);
-        const intersects = raycaster.intersectObjects(platforms);
+        const intersects = raycaster.intersectObjects(checkObjects, true); // True for recursive check in groups
         let onSolidGround = false;
 
         if (intersects.length > 0) {
             const hit = intersects[0];
-            if (hit.distance < 4.0 && velocity.y <= 0) {
+            // Adjust detection for lobby
+            const groundLimit = 4.0;
+            if (hit.distance < groundLimit && velocity.y <= 0) {
                 player.position.y = hit.point.y + 1.1;
                 velocity.y = 0;
                 isGrounded = true;
@@ -734,8 +828,9 @@ function animate(time) {
         }
         if (!onSolidGround) isGrounded = false;
 
-        // Check for victory condition
-        if (player.position.z <= CASTLE_Z + 5 &&
+        // Check for victory condition (only in game)
+        if (window.gameState === 'playing' && 
+            player.position.z <= CASTLE_Z + 5 &&
             Math.abs(player.position.x) < 10 &&
             player.position.y <= 12) {
             if (window.gameState !== 'ended') {
@@ -836,10 +931,16 @@ function animate(time) {
 
         const targetCamPos = player.position.clone().add(camOffset);
 
-        const smoothFactor = 5.0 * delta;
-        camera.position.lerp(targetCamPos, smoothFactor);
-
-        camera.lookAt(player.position.clone().add(new THREE.Vector3(0, 2, 0)));
+        // NAN Safety Check for Camera
+        if (!isNaN(targetCamPos.x) && !isNaN(targetCamPos.y) && !isNaN(targetCamPos.z) && !isNaN(delta)) {
+            const smoothFactor = 5.0 * delta;
+            camera.position.lerp(targetCamPos, smoothFactor);
+            camera.lookAt(player.position.clone().add(new THREE.Vector3(0, 2, 0)));
+        } else {
+             // Fallback if calculations fail
+             camera.position.set(player.position.x, player.position.y + 5, player.position.z + 10);
+             camera.lookAt(player.position);
+        }
 
         // Handle interaction prompts
         if (window.ronnie) {
@@ -1054,6 +1155,24 @@ function setupInputs() {
         uiManager.onLogout(() => console.log('Auth disabled in offline mode'));
     }
 
+    // Connect Kiosk UI Events with callbacks
+    uiManager.onKioskClose(() => {
+        // Close UI
+        uiManager.toggleKiosk(false);
+        // Reset state to lobby so controls work again
+        window.gameState = 'lobby';
+        // Lock pointer again
+        document.body.requestPointerLock();
+    });
+
+    uiManager.onKioskNameChange((newName) => {
+        myName = newName;
+        // Optionally save to Firebase if online
+        if (FEATURES.MULTIPLAYER && db && auth && auth.currentUser) {
+             // ... save logic ...
+        }
+    });
+
     // Character Selection
     const previews = uiManager.getCharacterPreviewElements();
     previews.forEach(el => {
@@ -1077,6 +1196,11 @@ function setupInputs() {
     uiManager.onStart(async (name) => {
         if (name) myName = name;
         uiManager.startGameUI(myName);
+
+        if (lobbyState) {
+            lobbyState.objects.forEach(obj => scene.remove(obj));
+            lobbyState = null;
+        }
 
         if (FEATURES.MULTIPLAYER && firebaseModule && db) {
             try {
@@ -1109,7 +1233,26 @@ function setupInputs() {
             status: uiManager.dom.authStatus
         };
 
-        await syncAndBuildWorld(scene, worldUI, platforms, coins, enemies, projectiles, isMultiplayer, db, CASTLE_Z, platformTexture, textureLoader);
+        await syncAndBuildWorld(
+            scene, 
+            { /* worldUI object */ 
+                progressBar: uiManager.dom.progressBar,
+                progressFill: uiManager.dom.progressFill,
+                progressText: uiManager.dom.progressText,
+                status: uiManager.dom.authStatus
+            }, 
+            platforms, 
+            coins, 
+            enemies, 
+            projectiles, 
+            isMultiplayer, 
+            db, 
+            CASTLE_Z, 
+            platformTexture, 
+            textureLoader,
+            GameWorld.generate, // De generator functie
+            "main_world"        // <--- DE LEVEL ID
+        );
 
         if (!mobile || !mobile.enabled) {
             document.body.requestPointerLock();
@@ -1169,18 +1312,38 @@ function setupInputs() {
     // --- 2. Pointer Lock & Mouse Look ---
     document.addEventListener('pointerlockchange', () => {
         if (document.pointerLockElement === document.body) {
-            window.gameState = 'playing';
-            uiManager.togglePauseScreen(false);
+            // Unpause based on state
+            if (window.gameState === 'paused') {
+                window.gameState = 'playing';
+                uiManager.togglePauseScreen(false);
+            }
         } else {
-            if (window.gameState === 'playing' && window.gameState !== 'ended') {
+            if (window.gameState === 'playing') {
                 window.gameState = 'paused';
                 uiManager.togglePauseScreen(true);
             }
         }
     });
 
+    // Add generic click listener for initial pointer lock
+    document.addEventListener('click', () => {
+        if (window.gameState === 'lobby' || window.gameState === 'playing') {
+            if (!mobile || !mobile.enabled) {
+                // Audio context resume trick
+                if (audioManager && audioManager.listener.context.state === 'suspended') {
+                    audioManager.listener.context.resume();
+                }
+                
+                if (!document.pointerLockElement) {
+                    document.body.requestPointerLock();
+                }
+            }
+        }
+    });
+
     document.addEventListener('mousemove', e => {
-        if (window.gameState === 'playing') {
+        // Look works in playing AND lobby
+        if (window.gameState === 'playing' || window.gameState === 'lobby') {
             // Haal de sensitivity op uit de settingsManager
             const sens = settingsManager.get('sensitivity') || 1.0;
             const baseSens = 0.002;
@@ -1223,6 +1386,9 @@ function setupInputs() {
     document.addEventListener('keydown', e => {
         if (e.repeat) return; // Voorkomt spammen bij inhouden
 
+        // Block inputs when Kiosk is open (state 'kiosk')
+        if (window.gameState !== 'playing' && window.gameState !== 'lobby') return;
+
         const action = settingsManager.getKeyAction(e.code);
 
         if (action === 'forward') moveF = true;
@@ -1234,7 +1400,30 @@ function setupInputs() {
 
         // INTERACTIE (E) - Praten met Ronnie
         if (action === 'interact') {
-            if (window.ronnie && shopSystem) {
+            // 1. KIOSK INTERACTIE (LOBBY)
+            if (window.gameState === 'lobby' && lobbyState) {
+                let foundKiosk = false;
+                lobbyState.objects.forEach(obj => {
+                    if (obj.children) {
+                        const hitbox = obj.children.find(c => c.userData.isKiosk);
+                        if (hitbox) {
+                            const dist = player.position.distanceTo(obj.position);
+                            if (dist < 3.0) { 
+                                foundKiosk = true;
+                            }
+                        }
+                    }
+                });
+
+                if (foundKiosk) {
+                    document.exitPointerLock();
+                    window.gameState = 'kiosk'; // Set state to kiosk to freeze movement
+                    uiManager.toggleKiosk(true);
+                }
+            }
+
+            // 2. RONNIE INTERACTIE (GAME)
+            if (window.ronnie && shopSystem && window.gameState === 'playing') {
                 const dist = player.position.distanceTo(window.ronnie.position);
                 if (dist < 5) {
                     shopSystem.interactWithRonnie(starsCollected, coinsCollected, (starDelta, coinDelta) => {
@@ -1288,4 +1477,72 @@ function setupInputs() {
             activateWeed();
         }
     });
+}
+
+function loadHomeLobby() {
+    window.gameState = 'lobby';
+    lobbyState = HomeWorld.build(scene);
+    
+    // Enable inputs immediately
+    if (!mobile || !mobile.enabled) {
+        // NOTE: We don't requestPointerLock here automatically to avoid errors.
+        // The user must click to capture.
+    }
+}
+
+async function startGameTransition(mode) {
+    console.log("🚀 Starting game transition mode:", mode);
+    
+    // Switch state to stop lobby updates
+    window.gameState = 'loading';
+    
+    // Cleanup Lobby
+    if (lobbyState) {
+        lobbyState.objects.forEach(obj => scene.remove(obj));
+        lobbyState = null;
+    }
+    
+    // Determine world type based on portal
+    let levelId = 'main_world';
+    let generator = GameWorld.generate;
+    
+    // Optional: Handle offline/online specific logic here
+    if (mode === 'offline') {
+        isMultiplayer = false; 
+        uiManager.updateStatus("firebase", "🎮 Offline Play", "gray");
+    } else {
+        // If mode is online, connection should have been established in init
+        isMultiplayer = true; 
+    }
+
+    const worldUI = {
+        progressBar: uiManager.dom.progressBar,
+        progressFill: uiManager.dom.progressFill,
+        progressText: uiManager.dom.progressText,
+        status: uiManager.dom.authStatus
+    };
+
+    // Load actual game world
+    await syncAndBuildWorld(
+        scene, 
+        worldUI, 
+        platforms, 
+        coins, 
+        enemies, 
+        projectiles, 
+        isMultiplayer, 
+        db, 
+        CASTLE_Z, 
+        platformTexture, 
+        textureLoader,
+        generator, 
+        levelId
+    );
+
+    // Reset player position for new world
+    player.position.set(0, 5, 0);
+    velocity.set(0,0,0);
+
+    // Switch state to playing
+    window.gameState = 'playing';
 }

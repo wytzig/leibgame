@@ -19,70 +19,69 @@
 
 <body>
 
-    <div id="start-screen" class="overlay active game-bg text-primary">
-        <div class="game-card card-bg">
-            <h1 class="text-4xl font-bold mb-2 text-primary">Leib Weissman</h1>
-            <h2 class="text-xl text-indigo-600 dark:text-indigo-400 mb-6 font-bold">Multiplayer Cloud Jumper</h2>
+    <div id="kiosk-screen" class="overlay game-bg" style="display: none;">
+        <div class="game-card card-bg relative">
+            <button id="kiosk-close-btn" class="absolute top-4 right-4 text-gray-500 hover:text-red-500 font-bold text-xl">✕</button>
+            
+            <h2 class="text-3xl font-bold mb-4 text-indigo-600 dark:text-indigo-400">PLAYER TERMINAL</h2>
+            
+            <div class="flex border-b border-gray-300 mb-4">
+                <button class="flex-1 py-2 font-bold text-indigo-600 border-b-2 border-indigo-600" id="tab-profile">Profile</button>
+                <button class="flex-1 py-2 font-bold text-gray-500 hover:text-indigo-600" id="tab-controls">Controls</button>
+            </div>
 
-            <div id="auth-status" class="text-sm p-3 mb-4 auth-status-bg rounded-lg">Connecting to server...</div>
+            <div id="content-profile">
+                <div class="mb-6 text-left">
+                    <label class="block text-label text-sm font-bold mb-2">Display Name</label>
+                    <div class="flex gap-2">
+                        <input id="kiosk-username" type="text" class="shadow appearance-none border rounded w-full py-2 px-3 text-input leading-tight focus:outline-none input-field input-border" placeholder="Your Name">
+                        <button id="kiosk-save-name" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded">Save</button>
+                    </div>
+                </div>
 
-            <div class="mb-6 border-t border-b border-divider py-4">
-                <button id="show-login-btn" class="text-sm text-indigo-600 dark:text-indigo-400 underline font-bold hover:text-indigo-800 dark:hover:text-indigo-300 w-full text-center">
-                    Already have an account? Or want to save progress?
-                </button>
-                
-                <div id="login-form-container" class="hidden mt-3 p-4 input-area-bg rounded-lg text-left shadow-inner">
-                    <label class="block text-xs font-bold text-secondary uppercase mb-1">Email</label>
-                    <input type="email" id="email-input" placeholder="name@example.com" class="mb-3 w-full p-2 border rounded text-input focus:outline-none focus:border-indigo-500 input-field">
-                    
-                    <label class="block text-xs font-bold text-secondary uppercase mb-1">Password</label>
-                    <input type="password" id="password-input" placeholder="********" class="mb-3 w-full p-2 border rounded text-input focus:outline-none focus:border-indigo-500 input-field">
-                    
-                    <div class="flex gap-2 mb-2">
-                        <button id="btn-link-account" class="bg-green-500 hover:bg-green-600 text-white px-3 py-2 rounded text-sm font-bold flex-1 transition">
-                            Save (Link)
-                        </button>
-                        <button id="btn-login" class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-2 rounded text-sm font-bold flex-1 transition">
-                            Login
-                        </button>
+                <div class="border-t border-divider pt-4 text-left">
+                    <h3 class="font-bold text-sm text-label mb-2">CLOUD SAVE (Firebase)</h3>
+                    <div id="kiosk-auth-status" class="text-xs p-2 mb-2 rounded bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
+                        Status: Checking...
                     </div>
                     
-                    <button id="btn-logout" class="hidden w-full bg-red-100 dark:bg-red-900 text-red-600 dark:text-red-200 text-xs font-bold py-2 rounded hover:bg-red-200 dark:hover:bg-red-800">
-                        Log out
-                    </button>
-                    
-                    <p id="auth-error" class="text-red-500 dark:text-red-400 text-xs mt-2 font-bold text-center min-h-[1rem]"></p>
-                </div>
-            </div>
-            <div class="mb-6">
-                <label class="block text-left text-label text-sm font-bold mb-2" for="username">Choose your name:</label>
-                <input
-                    class="shadow appearance-none border rounded w-full py-3 px-3 text-input leading-tight focus:outline-none focus:shadow-outline input-field input-border"
-                    id="username-input" type="text" placeholder="e.g. LeibWarrior" maxlength="12">
-            </div>
-
-            <div id="character-selection" class="mb-6">
-                <label class="block text-left text-label text-sm font-bold mb-2">Choose your character:</label>
-                <div class="flex gap-4 justify-center"> 
-                    <div class="char-preview border p-2 rounded-md hover:border-indigo-600 dark:hover:border-indigo-400 transition cursor-pointer input-border"
-                        data-model="https://MaxTomahawk.github.io/leibgame-assets/assets/katinka.glb" style="width:120px; height:150px;"></div>
-                    <div class="char-preview border p-2 rounded-md hover:border-indigo-600 dark:hover:border-indigo-400 transition cursor-pointer input-border"
-                        data-model="https://MaxTomahawk.github.io/leibgame-assets/assets/marco.glb" style="width:120px; height:150px;"></div>
-                    <div class="char-preview border p-2 rounded-md hover:border-indigo-600 dark:hover:border-indigo-400 transition cursor-pointer input-border"
-                        data-model="https://MaxTomahawk.github.io/leibgame-assets/assets/leib.glb" style="width:120px; height:150px;"></div>
+                    <div class="grid gap-2">
+                        <input type="email" id="kiosk-email" placeholder="Email" class="p-2 border rounded text-sm input-field text-input">
+                        <input type="password" id="kiosk-password" placeholder="Password" class="p-2 border rounded text-sm input-field text-input">
+                        <div class="flex gap-2 mt-1">
+                            <button id="kiosk-login-btn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-1 rounded text-sm font-bold">Login</button>
+                            <button id="kiosk-link-btn" class="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-1 rounded text-sm font-bold">Link Account</button>
+                        </div>
+                         <button id="kiosk-logout-btn" class="hidden w-full bg-red-500 hover:bg-red-600 text-white py-1 rounded text-sm font-bold mt-2">Log Out</button>
+                    </div>
                 </div>
             </div>
 
-            <div id="controls-hint" class="text-left text-sm p-4 hint-bg rounded-lg mb-6 text-label">
-                <p>Loading controls...</p>
+            <div id="content-controls" class="hidden text-left text-sm text-label">
+                <ul class="space-y-2">
+                    <li><strong>W, A, S, D</strong> - Move Character</li>
+                    <li><strong>Space</strong> - Jump (Double Jump available)</li>
+                    <li><strong>Shift</strong> - Sprint</li>
+                    <li><strong>Mouse</strong> - Look Around</li>
+                    <li><strong>Left Click</strong> - Spit / Attack</li>
+                    <li><strong>Right Click</strong> - Trip Mode (Cost: 1 Coin)</li>
+                    <li><strong>E</strong> - Interact / Open Kiosk</li>
+                    <li><strong>F</strong> - Summon Cloud (Unlockable)</li>
+                    <li><strong>Q</strong> - Glide (Unlockable)</li>
+                </ul>
             </div>
-
-            <button id="start-btn"
-                class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-full transition duration-300 w-full text-lg cursor-not-allowed opacity-50"
-                disabled>
-                Start Game
-            </button>
         </div>
+    </div>
+
+    <div id="start-screen" style="display: none !important;">
+        <div id="auth-status"></div>
+         <input id="username-input">
+         <button id="start-btn"></button>
+         <button id="btn-login"></button>
+         <button id="btn-link-account"></button>
+         <button id="btn-logout"></button>
+         <div id="player-name-display"></div>
+         <div id="peer-count"></div>
     </div>
 
     <div class="ui-container w-full fixed top-0 left-0 z-50">
@@ -91,8 +90,8 @@
                 
                 <div class="flex items-center gap-2 text-sm overflow-hidden">
                     <span class="text-xs font-semibold uppercase opacity-70 hidden sm:inline">Player</span>
-                    <span id="player-name-display" class="text-yellow-400 font-bold truncate max-w-[100px] sm:max-w-none">Guest</span>
-                    <span class="text-green-400 text-xs whitespace-nowrap opacity-80">(Online: <span id="peer-count">0</span>)</span>
+                    <span id="hud-name-display" class="text-yellow-400 font-bold truncate max-w-[100px] sm:max-w-none">Guest</span>
+                    <span class="text-green-400 text-xs whitespace-nowrap opacity-80">(Online: <span id="peer-count-display">0</span>)</span>
                 </div>
 
                 <div class="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none">
@@ -162,71 +161,57 @@
     <script type="module" src="main.js"></script>
 
     <style>
-        /* ========================================================== */
-        /* GLOBALE KLEUREN SCHEMA (CSS CUSTOM PROPERTIES) */
-        /* ========================================================== */
         :root, body {
-            /* Lichte Modus Standaarden */
-            --color-game-bg: 243 244 246; /* gray-100/200 */
-            --color-card-bg: 255 255 255; /* white */
-            --color-text-primary: 17 24 39; /* gray-900 */
-            --color-text-secondary: 107 114 128; /* gray-500 */
-            --color-text-label: 55 65 81; /* gray-700 */
-            --color-input-field-bg: 255 255 255; /* white */
-            --color-input-text: 55 65 81; /* gray-700 */
-            --color-input-border: 209 213 219; /* gray-300 */
-            --color-hint-bg: 243 244 246; /* gray-100 */
-            --color-auth-status-bg: 219 234 254; /* blue-100 */
-            --color-auth-status-text: 30 58 138; /* blue-800 */
-            --color-divider: 229 231 235; /* gray-200 */
-            --color-input-area-bg: 249 250 251; /* gray-50 */
+            --color-game-bg: 243 244 246; 
+            --color-card-bg: 255 255 255; 
+            --color-text-primary: 17 24 39; 
+            --color-text-secondary: 107 114 128;
+            --color-text-label: 55 65 81;
+            --color-input-field-bg: 255 255 255; 
+            --color-input-text: 55 65 81; 
+            --color-input-border: 209 213 219; 
+            --color-hint-bg: 243 244 246; 
+            --color-auth-status-bg: 219 234 254; 
+            --color-auth-status-text: 30 58 138; 
+            --color-divider: 229 231 235; 
+            --color-input-area-bg: 249 250 251; 
         }
         
         body.dark {
-            /* Donkere Modus Overrides */
-            --color-game-bg: 17 24 39; /* gray-900 */
-            --color-card-bg: 31 41 55; /* gray-800 */
-            --color-text-primary: 243 244 246; /* gray-100 */
-            --color-text-secondary: 156 163 175; /* gray-400 */
-            --color-text-label: 209 213 219; /* gray-300 */
-            --color-input-field-bg: 75 85 99; /* gray-600 */
-            --color-input-text: 243 244 246; /* gray-100 */
-            --color-input-border: 107 114 128; /* gray-500 */
-            --color-hint-bg: 55 65 81; /* gray-700 */
-            --color-auth-status-bg: 30 58 138; /* blue-900 */
-            --color-auth-status-text: 191 219 254; /* blue-200 */
-            --color-divider: 55 65 81; /* gray-700 */
-            --color-input-area-bg: 55 65 81; /* gray-700 */
+            --color-game-bg: 17 24 39; 
+            --color-card-bg: 31 41 55; 
+            --color-text-primary: 243 244 246; 
+            --color-text-secondary: 156 163 175; 
+            --color-text-label: 209 213 219; 
+            --color-input-field-bg: 75 85 99; 
+            --color-input-text: 243 244 246; 
+            --color-input-border: 107 114 128; 
+            --color-hint-bg: 55 65 81; 
+            --color-auth-status-bg: 30 58 138; 
+            --color-auth-status-text: 191 219 254; 
+            --color-divider: 55 65 81; 
+            --color-input-area-bg: 55 65 81; 
         }
         
-        /* ========================================================== */
-        /* GENERIEKE CLASSES DIE VARIABELEN GEBRUIKEN */
-        /* ========================================================== */
         .game-bg { 
             background-color: rgb(var(--color-game-bg)/ 0.78);
             backdrop-filter: blur(10px);    
         }
         .card-bg { background-color: rgb(var(--color-card-bg)); }
-        
         .text-primary { color: rgb(var(--color-text-primary)); }
         .text-secondary { color: rgb(var(--color-text-secondary)); }
         .text-label { color: rgb(var(--color-text-label)); }
         .text-input { color: rgb(var(--color-input-text)); }
-
         .input-field { background-color: rgb(var(--color-input-field-bg)); }
         .input-border { border-color: rgb(var(--color-input-border)); }
         .input-area-bg { background-color: rgb(var(--color-input-area-bg)); }
-        
         .hint-bg { background-color: rgb(var(--color-hint-bg)); }
         .auth-status-bg { 
             background-color: rgb(var(--color-auth-status-bg)); 
             color: rgb(var(--color-auth-status-text));
         }
-        .border-divider { 
-            border-color: rgb(var(--color-divider)); 
-        }
+        .border-divider { border-color: rgb(var(--color-divider)); }
 
-        /* Oude CSS behouden */
         .char-preview.selected {
             border-color: #00ff00;
             background-color: #222;
@@ -235,30 +220,16 @@
             border-color: #00ff00; 
             background-color: #1a1a1a; 
         }
-        #start-btn {
-            position: relative;
-            z-index: 9999;
-        }
+        #start-btn { position: relative; z-index: 9999; }
         .bmc-fixed-btn {
-            position: fixed !important;
-            bottom: 20px;
-            right: 20px;
-            background: #ffdd00;
-            color: #000;
-            padding: 10px 18px;
-            border-radius: 40px;
-            font-weight: bold;
-            text-decoration: none;
-            font-size: 15px;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
-            z-index: 999999;
-            pointer-events: auto !important;
-            user-select: none;
+            position: fixed !important; bottom: 20px; right: 20px;
+            background: #ffdd00; color: #000; padding: 10px 18px;
+            border-radius: 40px; font-weight: bold; text-decoration: none;
+            font-size: 15px; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
+            z-index: 999999; pointer-events: auto !important; user-select: none;
             transition: transform 0.15s;
         }
-        .bmc-fixed-btn:hover {
-            transform: translateY(-2px);
-        }
+        .bmc-fixed-btn:hover { transform: translateY(-2px); }
     </style>
     <a href="https://www.buymeacoffee.com/wytzig" target="_blank" id="bmc-btn" class="bmc-fixed-btn hidden sm:block">
         ☕ Support me
